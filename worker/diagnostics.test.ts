@@ -44,7 +44,6 @@ describe('runDiagnostics', () => {
       'r2',
       'browser-run',
       'workers-ai',
-      'jina-reader',
     ])
     expect(JSON.stringify(report)).not.toContain('test-key')
   })
@@ -66,6 +65,23 @@ describe('runDiagnostics', () => {
       message: 'model unavailable',
       ok: false,
     })
-    expect(report.checks.filter(check => check.ok)).toHaveLength(4)
+    expect(report.checks.filter(check => check.ok)).toHaveLength(3)
+  })
+
+  it('checks Jina Reader only when an API key is configured', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/api/users/me'))
+        return Response.json({ user: { id: 1 } })
+      return new Response('# Example Domain')
+    }))
+    const env = createEnv()
+    env.JINA_API_KEY = 'jina-key'
+
+    const report = await runDiagnostics(env)
+
+    expect(report.checks.find(check => check.name === 'jina-reader')).toMatchObject({
+      ok: true,
+    })
   })
 })

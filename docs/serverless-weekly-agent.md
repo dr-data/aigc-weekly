@@ -29,7 +29,7 @@ Workflow Schedule / POST /runs
 - **不使用 Queue**：当前来源规模适合 Workflow 顺序执行，可自然遵守网站限流并控制 Browser Run 并发。来源规模显著增加时再引入 Queue 扇出。
 - **不使用 D1 保存 Agent 状态**：Workflow 已持久化执行状态；R2 保存可审计产物；Payload 的 `issueNumber` 唯一字段保证发布幂等。
 - **Browser Run 不是第一选择**：优先使用低成本静态获取，仅在正文不可用时启动浏览器。
-- **Jina Reader 是最终外部回退**：它使用不同抓取基础设施，但不是 Cloudflare 服务。没有配置 API Key 时使用其公开接口。
+- **Jina Reader 是可选的最终外部回退**：它使用不同抓取基础设施，但不是 Cloudflare 服务。未配置 `JINA_API_KEY` 时完全跳过，不调用公共接口。
 - **失败隔离**：单一来源失败不会终止本期任务；全部来源均无合格内容时才停止发布。
 
 ## 抓取成功判定
@@ -58,6 +58,6 @@ Browser Run 和 Jina Reader 都不能保证绕过验证码、登录墙或网站�
 ## 运维接口
 
 - `GET /health`：公开健康检查。
-- `GET /diagnostics`：通过 Basic Auth 低成本检查 Payload、R2、Browser Run、Workers AI 和 Jina Reader，不返回任何 secret。
+- `GET /diagnostics`：通过 Basic Auth 低成本检查 Payload、R2、Browser Run、Workers AI，以及已配置的 Jina Reader，不返回任何 secret。
 - `POST /runs`：通过 Basic Auth 手动启动，可传 `{"date":"YYYY-MM-DD"}`。
 - `GET /runs/:id`：通过 Basic Auth 查询 Workflow 状态。

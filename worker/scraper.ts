@@ -253,12 +253,14 @@ async function browserMarkdown(browser: BrowserRun, url: string): Promise<string
 }
 
 async function jinaRead(fetcher: typeof fetch, apiKey: string | undefined, url: string): Promise<string> {
+  if (!apiKey)
+    throw new Error('Jina Reader 未配置，已跳过')
+
   const headers = new Headers({
     'Accept': 'text/markdown',
+    'Authorization': `Bearer ${apiKey}`,
     'X-Return-Format': 'markdown',
   })
-  if (apiKey)
-    headers.set('Authorization', `Bearer ${apiKey}`)
 
   const response = await fetcher(`https://r.jina.ai/${url}`, {
     headers,

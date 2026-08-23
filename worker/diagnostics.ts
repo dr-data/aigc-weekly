@@ -89,12 +89,11 @@ async function checkWorkersAI(env: Cloudflare.Env): Promise<void> {
 }
 
 async function checkJinaReader(env: Cloudflare.Env): Promise<void> {
-  const headers = new Headers({ Accept: 'text/markdown' })
-  if (env.JINA_API_KEY)
-    headers.set('Authorization', `Bearer ${env.JINA_API_KEY}`)
-
   const response = await fetch('https://r.jina.ai/https://example.com/', {
-    headers,
+    headers: {
+      Accept: 'text/markdown',
+      Authorization: `Bearer ${env.JINA_API_KEY}`,
+    },
     signal: AbortSignal.timeout(20_000),
   })
   if (!response.ok)
@@ -106,13 +105,16 @@ async function checkJinaReader(env: Cloudflare.Env): Promise<void> {
 }
 
 export async function runDiagnostics(env: Cloudflare.Env): Promise<DiagnosticReport> {
-  const checks = await Promise.all([
+  const operations = [
     check('payload', () => checkPayload(env)),
     check('r2', () => checkR2(env)),
     check('browser-run', () => checkBrowserRun(env)),
     check('workers-ai', () => checkWorkersAI(env)),
-    check('jina-reader', () => checkJinaReader(env)),
-  ])
+  ]
+  if (env.JINA_API_KEY)
+    operations.push(check('jina-reader', () => checkJinaReader(env)))
+
+  const checks = await Promise.all(operations)
 
   return {
     checks,

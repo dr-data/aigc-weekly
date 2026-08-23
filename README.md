@@ -83,7 +83,7 @@
 3. **配置周刊 Worker**：
    - `SERVER_USERNAME`、`SERVER_PASSWORD`：手动启动和查询任务所需的 Basic Auth。
    - `PAYLOAD_BASE_URL`、`PAYLOAD_API_KEY`：将最终周刊写入 Payload CMS。
-   - `JINA_API_KEY`：可选，用于提高 Jina Reader 的请求额度。
+   - `JINA_API_KEY`：可选；配置后才启用 Jina Reader 最终回退，未配置时完全跳过。
 
    Workers AI、Browser Run、R2 和 Workflows 通过 `worker/wrangler.jsonc` 中的 Cloudflare bindings 访问，无需在应用中保存对应 API Token。
 

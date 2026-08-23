@@ -45,7 +45,12 @@ async function handleFetch(request: Request, env: Cloudflare.Env): Promise<Respo
 
   if (request.method === 'GET' && url.pathname === '/health') {
     return Response.json({
-      crawler: ['markdown-for-agents', 'readability', 'browser-run', 'jina-reader'],
+      crawler: [
+        'markdown-for-agents',
+        'readability',
+        'browser-run',
+        ...(env.JINA_API_KEY ? ['jina-reader'] : []),
+      ],
       service: 'aigc-weekly-agent',
       status: 'ok',
     })
