@@ -64,6 +64,13 @@ function firstLink(element: Element): string {
   return atomLink?.getAttribute('href')?.trim() ?? ''
 }
 
+function normalizeFeedItemUrl(url: string): string {
+  const trimmed = url.trim()
+  if (/^\d+$/.test(trimmed))
+    return `https://news.ycombinator.com/item?id=${trimmed}`
+  return trimmed
+}
+
 function parseRssItemsFromRegex(xml: string): FeedItem[] {
   const items: FeedItem[] = []
   const itemPattern = /<item\b[^>]*>([\s\S]*?)<\/item>/gi
@@ -84,7 +91,7 @@ function parseRssItemsFromRegex(xml: string): FeedItem[] {
       date: normalizeDate(pubDate),
       summary: summary ?? '',
       title,
-      url,
+      url: normalizeFeedItemUrl(url),
     })
   }
 
@@ -112,7 +119,7 @@ function parseRssItems(document: Document, xml: string): FeedItem[] {
         date: normalizeDate(pubDate),
         summary: textContent(item.querySelector('description')),
         title,
-        url,
+        url: normalizeFeedItemUrl(url),
       }
     })
     .filter((item): item is FeedItem => item !== null)
@@ -143,7 +150,7 @@ function parseAtomItems(document: Document): FeedItem[] {
         date: normalizeDate(updated),
         summary: textContent(entry.querySelector('summary')) || textContent(entry.querySelector('content')),
         title,
-        url,
+        url: normalizeFeedItemUrl(url),
       }
     })
     .filter((item): item is FeedItem => item !== null)

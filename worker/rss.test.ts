@@ -53,6 +53,11 @@ describe('parseFeedXml', () => {
       url: 'https://example.com/llm-tool',
     })
   })
+
+  it('normalizes Hacker News item ids into full URLs', () => {
+    const feed = parseFeedXml(`<?xml version="1.0"?><rss><channel><title>HN</title><item><title>Story</title><link>49407576</link></item></channel></rss>`)
+    expect(feed.items[0]?.url).toBe('https://news.ycombinator.com/item?id=49407576')
+  })
 })
 
 describe('filterFeedItems', () => {
