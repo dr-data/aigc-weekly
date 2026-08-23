@@ -1,0 +1,17 @@
+{
+  "name": "aigc-weekly",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "next-dev",
+      "command": "pnpm dev",
+      "description": "Next.js 前台 + Payload 管理后台开发服务器 (http://localhost:3000, 后台 /admin)"
+    }
+  ],
+  "ports": [
+    {
+      "name": "web",
+      "port": 3000
+    }
+  ]
+}
