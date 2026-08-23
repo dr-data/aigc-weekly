@@ -7,7 +7,6 @@
 - **语言**：所有对话、提交信息与界面交互均使用简体中文
 - **环境**：Node.js 22 + pnpm 10；脚本假定 `pnpm` 在 PATH 中
 - **工作目录**：仓库根目录；临时文件写入 `data/`、`.next/` 或 `.wrangler/`
-- **忽略**：`agent/.claude` 目录中的文件
 
 ## 常用命令
 
@@ -135,8 +134,7 @@ aigc-weekly/
 ├── app/                    # Next.js App Router
 │   ├── (frontend)/         # 前台页面
 │   └── (payload)/          # Payload Admin
-├── agent/                  # Claude Agent（运行在 Cloudflare Containers）
-├── worker/                 # Cloudflare Worker
+├── worker/                 # Cloudflare Worker + Workflows + Workers AI Agent
 ├── collections/            # Payload CMS 数据模型
 ├── components/             # React 组件
 ├── lib/                    # 工具函数与配置

@@ -2,7 +2,7 @@
   "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "aigc-weekly-worker",
   "main": "./index.ts",
-  "compatibility_date": "2025-11-29",
+  "compatibility_date": "2026-08-23",
   "compatibility_flags": [
     "nodejs_compat"
   ],
@@ -17,32 +17,25 @@
       "enabled": true
     }
   },
-  "triggers": {
-    "crons": [
-      "0 23 * * 7"
-    ]
+  "ai": {
+    "binding": "AI"
   },
-  "containers": [
+  "browser": {
+    "binding": "BROWSER",
+    "remote": true
+  },
+  "r2_buckets": [
     {
-      "name": "aigc-weekly-container",
-      "class_name": "AgentContainer",
-      "image": "../Dockerfile",
-      "instance_type": "standard-1",
-      "max_instances": 1
+      "binding": "AGENT_STORAGE",
+      "bucket_name": "aigc-weekly"
     }
   ],
-  "durable_objects": {
-    "bindings": [
-      {
-        "class_name": "AgentContainer",
-        "name": "AGENT_CONTAINER"
-      }
-    ]
-  },
-  "migrations": [
+  "workflows": [
     {
-      "new_sqlite_classes": ["AgentContainer"],
-      "tag": "container"
+      "name": "aigc-weekly-workflow",
+      "binding": "WEEKLY_WORKFLOW",
+      "class_name": "WeeklyWorkflow",
+      "schedules": ["0 23 * * 7"]
     }
   ]
 }
