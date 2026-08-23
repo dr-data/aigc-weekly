@@ -20,6 +20,7 @@ const dirname = path.dirname(filename)
 
 const isCLI = process.argv.some(value => value.match(/^(generate|migrate):?/))
 const isProduction = process.env.NODE_ENV === 'production'
+const serverURL = (process.env.NEXT_PUBLIC_BASE_URL ?? 'https://ai.shor.lol').replace(/\/$/, '')
 
 type PayloadR2Bucket = R2StorageOptions['bucket']
 
@@ -35,12 +36,15 @@ export default buildConfig({
     },
   },
   collections: [Users, Weekly, Media],
+  cors: [serverURL],
+  csrf: [serverURL],
   editor: lexicalEditor(),
   i18n: {
     supportedLanguages: { zh },
     fallbackLanguage: 'zh',
   },
   secret: process.env.PAYLOAD_SECRET || '',
+  serverURL,
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },

@@ -1,3 +1,4 @@
+import { runDiagnostics } from './diagnostics'
 import { getWeekInfo } from './week'
 
 export { WeeklyWorkflow } from './workflow'
@@ -70,6 +71,11 @@ async function handleFetch(request: Request, env: Cloudflare.Env): Promise<Respo
     }, { status: 202 })
   }
 
+  if (request.method === 'GET' && url.pathname === '/diagnostics') {
+    const report = await runDiagnostics(env)
+    return Response.json(report, { status: report.ok ? 200 : 503 })
+  }
+
   const runMatch = url.pathname.match(/^\/runs\/([^/]+)$/)
   if (request.method === 'GET' && runMatch?.[1]) {
     const instance = await env.WEEKLY_WORKFLOW.get(decodeURIComponent(runMatch[1]))
@@ -83,6 +89,7 @@ async function handleFetch(request: Request, env: Cloudflare.Env): Promise<Respo
     return Response.json({
       endpoints: {
         health: 'GET /health',
+        diagnostics: 'GET /diagnostics',
         start: 'POST /runs {"date":"YYYY-MM-DD"}',
         status: 'GET /runs/:id',
       },
