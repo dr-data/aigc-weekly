@@ -302,7 +302,9 @@ async function collectCandidates(
     case 'rsshub': {
       const feedUrl = resolveFeedUrl(source.kind, source.url, env)
       const feed = await fetchFeed(feedUrl)
-      const candidates = filterFeedItems(feed.items, week).map(feedItemToCandidate)
+      const candidates = filterFeedItems(feed.items, week)
+        .map(feedItemToCandidate)
+        .slice(0, MAX_CANDIDATES_PER_SOURCE)
       return {
         candidates,
         method: source.kind === 'rsshub' ? 'rsshub' : 'rss',
@@ -316,7 +318,7 @@ async function collectCandidates(
 
       const items = await fetchHnFeedItems(source.hnFeed, week)
       return {
-        candidates: items.map(feedItemToCandidate),
+        candidates: items.map(feedItemToCandidate).slice(0, MAX_CANDIDATES_PER_SOURCE),
         method: 'hn-api',
         snapshot: JSON.stringify(items, null, 2),
       }
