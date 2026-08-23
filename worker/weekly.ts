@@ -303,6 +303,23 @@ function feedItemToCandidate(item: { date: string, summary: string, title: strin
   }
 }
 
+export function isHnItemUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return parsed.hostname.replace(/^www\./, '') === 'news.ycombinator.com'
+      && parsed.pathname === '/item'
+      && parsed.searchParams.has('id')
+  }
+  catch {
+    return false
+  }
+}
+
+function metadataContent(candidate: Candidate): string {
+  const parts = [candidate.title, candidate.summary].filter(part => part?.trim())
+  return parts.join('\n\n') || candidate.title
+}
+
 async function collectCandidates(
   env: Cloudflare.Env,
   source: ResearchSource,
@@ -313,7 +330,9 @@ async function collectCandidates(
     case 'rsshub': {
       const feedUrl = resolveFeedUrl(source.kind, source.url, env)
       const feed = await fetchFeed(feedUrl)
-      const candidates = filterFeedItems(feed.items, week)
+      const candidates = filterFeedItems(feed.items, week, {
+        aiKeywordsOnly: source.url.includes('/solidot/'),
+      })
         .map(feedItemToCandidate)
         .slice(0, MAX_CANDIDATES_PER_SOURCE)
       return {
@@ -361,7 +380,16 @@ async function scoreCandidates(
   for (const candidate of candidates) {
     try {
       const cached = landingContentByUrl.get(candidate.url)
-      const articleContent = cached ?? (await scraper.scrape(candidate.url)).content
+      let articleContent: string
+      if (cached) {
+        articleContent = cached
+      }
+      else if (isHnItemUrl(candidate.url)) {
+        articleContent = metadataContent(candidate)
+      }
+      else {
+        articleContent = (await scraper.scrape(candidate.url)).content
+      }
       const article = await scoreArticle(env, source, candidate, articleContent)
       if (article)
         articles.push(article)

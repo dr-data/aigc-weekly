@@ -197,10 +197,51 @@ function isDateInWeek(date: string, week: WeekInfo): boolean {
   return date >= week.startDate && date <= week.endDate
 }
 
-export function filterFeedItems(items: FeedItem[], week: WeekInfo): FeedItem[] {
-  const dated = items.filter(item => isDateInWeek(item.date, week))
-  if (dated.length > 0)
-    return dated.slice(0, MAX_UNDATED_ITEMS)
+const AI_KEYWORD_PATTERNS = [
+  /\bAIGC\b/i,
+  /\bAI\b/i,
+  /\bLLM\b/i,
+  /\bGPT\b/i,
+  /\bChatGPT\b/i,
+  /\bClaude\b/i,
+  /\bGemini\b/i,
+  /\bDeepSeek\b/i,
+  /\bOpenAI\b/i,
+  /\bAnthropic\b/i,
+  /\bCopilot\b/i,
+  /\bAgent\b/i,
+  /\bTransformer\b/i,
+  /人工智能/,
+  /机器学习/,
+  /大模型/,
+  /生成式/,
+  /神经网络/,
+  /深度学习/,
+]
 
-  return items.slice(0, MAX_UNDATED_ITEMS)
+export function matchesAiKeywords(text: string): boolean {
+  const haystack = text.trim()
+  if (!haystack)
+    return false
+
+  return AI_KEYWORD_PATTERNS.some(pattern => pattern.test(haystack))
+}
+
+export function filterByAiKeywords(items: FeedItem[]): FeedItem[] {
+  return items.filter(item => matchesAiKeywords(`${item.title} ${item.summary}`))
+}
+
+export interface FeedFilterOptions {
+  aiKeywordsOnly?: boolean
+}
+
+export function filterFeedItems(items: FeedItem[], week: WeekInfo, options?: FeedFilterOptions): FeedItem[] {
+  const dated = items.filter(item => isDateInWeek(item.date, week))
+  let filtered = dated.length > 0 ? dated : items
+  filtered = filtered.slice(0, MAX_UNDATED_ITEMS)
+
+  if (options?.aiKeywordsOnly)
+    filtered = filterByAiKeywords(filtered)
+
+  return filtered
 }

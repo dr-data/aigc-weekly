@@ -14,11 +14,9 @@ export interface ResearchSource {
 }
 
 const RSSHUB_SOURCES: ResearchSource[] = [
-  { name: 'HN Front Page', kind: 'rsshub', url: '/hackernews', priority: 'important' },
   { name: 'HN Show', kind: 'rsshub', url: '/hackernews/show', priority: 'important' },
   { name: 'HN Best', kind: 'rsshub', url: '/hackernews/best', priority: 'important' },
   { name: 'AI日报', kind: 'rsshub', url: '/aibase/daily', priority: 'important' },
-  { name: 'OpenAI News', kind: 'rsshub', url: '/openai/news', priority: 'important' },
   { name: 'DeepSeek News', kind: 'rsshub', url: '/deepseek/news', priority: 'important' },
   { name: 'Anthropic News', kind: 'rsshub', url: '/anthropic/news', priority: 'blog' },
   { name: 'Anthropic Engineering', kind: 'rsshub', url: '/anthropic/engineering', priority: 'blog' },
@@ -28,14 +26,15 @@ const RSSHUB_SOURCES: ResearchSource[] = [
   { name: 'Product Hunt Today', kind: 'rsshub', url: '/producthunt/today', priority: 'important' },
   { name: '每日 AI 资讯', kind: 'rsshub', url: '/ai-bot/daily-ai-news', priority: 'important' },
   { name: 'Hugging Face Trending Spaces', kind: 'rsshub', url: '/huggingface/spaces-trending', priority: 'important' },
-  { name: 'Trending arXiv Papers', kind: 'rsshub', url: '/trendingpapers/papers', priority: 'important' },
   { name: 'TechCrunch News', kind: 'rsshub', url: '/techcrunch/news', priority: 'important' },
-  { name: 'Solidot Linux', kind: 'rsshub', url: '/solidot/linux', priority: 'important' },
-  { name: 'GitHub Trending', kind: 'rsshub', url: '/github/trending', priority: 'important' },
+  { name: 'Solidot', kind: 'rsshub', url: '/solidot/www', priority: 'important' },
+  { name: 'GitHub Trending', kind: 'rsshub', url: '/github/trending/weekly/any', priority: 'important' },
   { name: 'V2EX Latest', kind: 'rsshub', url: '/v2ex/topics/latest', priority: 'kol' },
 ]
 
 const NATIVE_RSS_SOURCES: ResearchSource[] = [
+  { name: 'OpenAI News', kind: 'rss', url: 'https://openai.com/news/rss.xml', priority: 'important' },
+  { name: 'arXiv cs.AI', kind: 'rss', url: 'https://arxiv.org/rss/cs.AI', priority: 'important' },
   { name: 'Google DeepMind', kind: 'rss', url: 'https://deepmind.google/blog/rss.xml', priority: 'blog' },
   { name: 'Hugging Face Blog', kind: 'rss', url: 'https://huggingface.co/blog/feed.xml', priority: 'blog' },
   { name: 'Simon Willison', kind: 'rss', url: 'https://simonwillison.net/atom/everything/', priority: 'kol' },

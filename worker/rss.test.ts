@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { filterFeedItems, parseFeedXml } from './rss'
+import { filterByAiKeywords, filterFeedItems, matchesAiKeywords, parseFeedXml } from './rss'
 import { getWeekInfo } from './week'
 
 const RSS_SAMPLE = `<?xml version="1.0" encoding="UTF-8"?>
@@ -78,5 +78,35 @@ describe('filterFeedItems', () => {
     ], week)
 
     expect(filtered).toHaveLength(2)
+  })
+
+  it('filters Solidot-style feeds to AI-related items when requested', () => {
+    const week = getWeekInfo('2026-08-23')
+    const filtered = filterFeedItems([
+      { date: '', summary: '内核更新', title: 'Linux 6.18 发布', url: 'https://example.com/linux' },
+      { date: '', summary: '新模型发布', title: 'OpenAI 发布 GPT-5', url: 'https://example.com/ai' },
+    ], week, { aiKeywordsOnly: true })
+
+    expect(filtered).toHaveLength(1)
+    expect(filtered[0]?.title).toBe('OpenAI 发布 GPT-5')
+  })
+})
+
+describe('matchesAiKeywords', () => {
+  it('matches common AI terms in Chinese and English', () => {
+    expect(matchesAiKeywords('OpenAI 发布新模型')).toBe(true)
+    expect(matchesAiKeywords('Linux kernel 6.18')).toBe(false)
+  })
+})
+
+describe('filterByAiKeywords', () => {
+  it('keeps only AI-related feed items', () => {
+    const filtered = filterByAiKeywords([
+      { date: '', summary: '', title: 'Ubuntu 更新', url: 'https://example.com/1' },
+      { date: '', summary: 'LLM benchmark', title: '新基准测试', url: 'https://example.com/2' },
+    ])
+
+    expect(filtered).toHaveLength(1)
+    expect(filtered[0]?.url).toBe('https://example.com/2')
   })
 })

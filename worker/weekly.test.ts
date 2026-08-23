@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { deduplicateArticles, parseModelJson, parseWeeklyDraft } from './weekly'
+import { deduplicateArticles, isHnItemUrl, parseModelJson, parseWeeklyDraft } from './weekly'
+
+describe('isHnItemUrl', () => {
+  it('detects Hacker News item pages', () => {
+    expect(isHnItemUrl('https://news.ycombinator.com/item?id=49407576')).toBe(true)
+    expect(isHnItemUrl('https://example.com/item?id=1')).toBe(false)
+  })
+})
 
 describe('deduplicateArticles', () => {
   it('keeps the highest scoring version of a repeated URL', () => {
