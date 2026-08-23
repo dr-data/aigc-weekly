@@ -17,7 +17,7 @@ export function Pagination({ title = '', prev, next }: PaginationProps) {
     return null
 
   return (
-    <nav className="pagination" aria-label="分页导航">
+    <nav className="pagination" aria-label="分頁導覽">
       <div className="pagination__title">
         <span className="pagination__title-h">{title}</span>
         <hr />

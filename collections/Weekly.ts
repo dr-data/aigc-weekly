@@ -24,7 +24,7 @@ export const Weekly: CollectionConfig = {
   fields: [
     {
       name: 'title',
-      label: '标题',
+      label: '標題',
       type: 'text',
       required: true,
     },
@@ -39,7 +39,7 @@ export const Weekly: CollectionConfig = {
     },
     {
       name: 'content',
-      label: '内容',
+      label: '內容',
       type: 'textarea',
       required: true,
       admin: {
@@ -52,25 +52,25 @@ export const Weekly: CollectionConfig = {
     },
     {
       name: 'issueNumber',
-      label: '期刊编号',
+      label: '期刊編號',
       type: 'text',
       required: true,
       unique: true,
       admin: {
         position: 'sidebar',
-        description: '格式：Y + 年份(两位数) + W + 周数(两位数)，例如：Y26W12',
+        description: '格式：Y + 年份（兩位數）+ W + 週數（兩位數），例如：Y26W12',
       },
       validate: (value: string) => {
         const pattern = /^Y\d{2}W\d{2}$/
         if (!pattern.test(value)) {
-          return '期刊编号格式不正确，请使用格式：Y[年份]W[周数]，例如 Y26W12'
+          return '期刊編號格式不正確，請使用格式：Y[年份]W[週數]，例如 Y26W12'
         }
         return true
       },
     },
     {
       name: 'status',
-      label: '状态',
+      label: '狀態',
       type: 'select',
       options: [
         {
@@ -78,7 +78,7 @@ export const Weekly: CollectionConfig = {
           value: 'draft',
         },
         {
-          label: '已发布',
+          label: '已發佈',
           value: 'published',
         },
       ],
@@ -90,7 +90,7 @@ export const Weekly: CollectionConfig = {
     },
     {
       name: 'publishDate',
-      label: '发布日期',
+      label: '發佈日期',
       type: 'date',
       required: true,
       admin: {
@@ -102,7 +102,7 @@ export const Weekly: CollectionConfig = {
     },
     {
       name: 'coverImage',
-      label: '封面图',
+      label: '封面圖',
       type: 'relationship',
       relationTo: 'media',
       admin: {
@@ -111,7 +111,7 @@ export const Weekly: CollectionConfig = {
     },
     {
       name: 'links',
-      label: '链接',
+      label: '連結',
       type: 'array',
       admin: {
         position: 'sidebar',
@@ -119,7 +119,7 @@ export const Weekly: CollectionConfig = {
       fields: [
         {
           name: 'label',
-          label: '标签',
+          label: '標籤',
           type: 'text',
           required: true,
         },
@@ -133,7 +133,7 @@ export const Weekly: CollectionConfig = {
     },
     {
       name: 'tags',
-      label: '标签',
+      label: '標籤',
       type: 'array',
       admin: {
         position: 'sidebar',
@@ -141,7 +141,7 @@ export const Weekly: CollectionConfig = {
       fields: [
         {
           name: 'value',
-          label: '标签值',
+          label: '標籤值',
           type: 'text',
           required: true,
         },

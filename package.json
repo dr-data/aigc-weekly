@@ -24,15 +24,21 @@
     "generate:types:payload": "payload generate:types",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
+    "migrate:weekly:traditional": "node scripts/migrateWeeklyToTraditional.mjs",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit && pnpm typecheck:worker",
     "typecheck:worker": "tsc -p worker/tsconfig.json --noEmit",
     "prepare": "simple-git-hooks",
     "payload": "payload",
     "wrangler": "wrangler"
   },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "linkedom": "^0.18.13",
+    "turndown": "^7.2.4"
+  },
   "devDependencies": {
     "@antfu/eslint-config": "^8.2.0",
-    "@cloudflare/containers": "^0.3.3",
     "@eslint-react/eslint-plugin": "^3.0.0",
     "@next/eslint-plugin-next": "^15.5.18",
     "@opennextjs/cloudflare": "^1.19.8",
@@ -46,6 +52,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/rss": "^0.0.32",
+    "@types/turndown": "^5.0.6",
     "baseline-browser-mapping": "^2.10.27",
     "cross-env": "^10.1.0",
     "dotenv": "^17.4.2",
@@ -57,6 +64,7 @@
     "lint-staged": "^17.0.2",
     "markdown-it-ts": "0.0.2-beta.7",
     "next": "^15.5.18",
+    "opencc-js": "^1.4.1",
     "overtype": "^2.3.10",
     "payload": "^3.84.1",
     "react": "^19.2.6",
@@ -65,7 +73,8 @@
     "rss": "^1.2.2",
     "simple-git-hooks": "^2.13.1",
     "typescript": "^5.9.3",
-    "wrangler": "^4.90.0"
+    "vitest": "^4.1.11",
+    "wrangler": "^4.125.0"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm lint-staged"

@@ -1,21 +1,22 @@
-# Agili 的 AIGC 周刊
+# DrData 的 AIGC 週刊
 
 一个由 Agentic AI Agent 驱动的 AIGC（人工智能生成内容）精选周刊。本项目利用最新的 AI 和 Serverless 技术，为您提供最新的资讯、工具和资源。
 
 ---
 
-**在线阅读**: <https://aigc-weekly.agi.li>
+**在线阅读**: <https://ai.shor.lol>
 
-**RSS订阅**: <https://aigc-weekly.agi.li/rss.xml>
+**RSS订阅**: <https://ai.shor.lol/rss.xml>
 
-![aigc-weekly](https://socialify.git.ci/miantiao-me/aigc-weekly/image?description=1&forks=1&name=1&owner=1&pattern=Circuit+Board&stargazers=1&theme=Auto)
+![aigc-weekly](https://socialify.git.ci/dr-data/aigc-weekly/image?description=1&forks=1&name=1&owner=1&pattern=Circuit+Board&stargazers=1&theme=Auto)
 
 ## 🚀 特性
 
 - **AI 智能策展**：利用 Agentic AI Agent 自动发现和筛选内容。
 - **现代技术栈**：基于 Next.js 15、Payload CMS 3.0 和 Cloudflare 边缘基础设施构建。
-- **Serverless 架构**：完全部署在 Cloudflare (Workers, D1, R2, Containers) 上，实现高性能和低延迟。
-- **Agent MCP 集成**：使用模型上下文协议 (MCP) 允许 AI Agent 直接与 CMS 交互。
+- **Serverless 架构**：完全部署在 Cloudflare Workers、Workflows、Workers AI、Browser Run、D1 和 R2 上。
+- **耐久任务编排**：周刊生产的每个阶段都可独立重试，并从最近成功的 Workflow 步骤恢复。
+- **多级网页提取**：按静态 Markdown、Readability、Browser Run、Jina Reader 的顺序逐级回退。
 
 ## 🛠 技术栈
 
@@ -23,8 +24,9 @@
 - **CMS**：[Payload CMS](https://payloadcms.com/) (Headless)
 - **数据库**：[Cloudflare D1](https://developers.cloudflare.com/d1/) (SQLite)
 - **存储**：[Cloudflare R2](https://developers.cloudflare.com/r2/) (对象存储)
-- **Agent 框架**：[OpenCode](https://opencode.ai/)
-- **Agent 运行时**：[Cloudflare Containers](https://developers.cloudflare.com/containers/) （需要付费套餐，或者在本地运行）
+- **Agent 编排**：[Cloudflare Workflows](https://developers.cloudflare.com/workflows/)
+- **模型推理**：[Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/)
+- **动态网页**：[Cloudflare Browser Run](https://developers.cloudflare.com/browser-run/)
 - **边缘运行时**：[Cloudflare Workers](https://workers.cloudflare.com/)
 
 ## 🏗 架构
@@ -32,8 +34,11 @@
 本项目包含三个主要组件：
 
 1. **Next.js 应用 (`app/`)**：负责面向读者的前端页面以及 Payload CMS 管理界面。
-2. **OpenCode Agent (`agent/`)**：一个独立的 Agent 服务，运行在 **Cloudflare Containers** 上，负责收集信息并通过 MCP 更新 CMS。
-3. **Cloudflare Worker (`worker/`)**：转发请求到 Container 并控制其生命周期。
+2. **Weekly Workflow (`worker/workflow.ts`)**：按信息收集、筛选、写作、审核、发布五个阶段生成周刊。
+3. **抓取模块 (`worker/scraper.ts`)**：首先请求 Markdown for Agents，再使用 Readability；内容仍不可用时依次调用 Browser Run 和 Jina Reader。
+4. **Worker API (`worker/index.ts`)**：启动 Workflow、查询任务状态并提供健康检查。
+
+抓取失败不会中断其他来源。研究产物、最终 Markdown 和失败详情会保存到 R2 的 `weekly-agent/` 前缀中。
 
 ## 🏁 快速开始
 
@@ -48,7 +53,7 @@
 1. 克隆仓库：
 
    ```bash
-   git clone https://github.com/miantiao-me/aigc-weekly.git
+   git clone https://github.com/dr-data/aigc-weekly.git
    cd aigc-weekly
    ```
 
@@ -75,10 +80,12 @@
    pnpm generate:types
    ```
 
-3. **配置 MCP 和 Agent**：
-   你可以在 `agent/opencode.json` 配置 MCP Server 和模型，在 `agent/.opencode/` 目录修改 Agent 的技能、子 Agent 和命令等配置。
+3. **配置周刊 Worker**：
+   - `SERVER_USERNAME`、`SERVER_PASSWORD`：手动启动和查询任务所需的 Basic Auth。
+   - `PAYLOAD_BASE_URL`、`PAYLOAD_API_KEY`：将最终周刊写入 Payload CMS。
+   - `JINA_API_KEY`：可选；配置后才启用 Jina Reader 最终回退，未配置时完全跳过。
 
-   项目使用 [**Firecrawl**](https://firecrawl.link/playground) 进行网页爬取和信息提取, 你需要在 Firecrawl 注册账号并获取 API Key，然后在 `worker/.env.local` 中配置 `FIRECRAWL_API_KEY`。
+   Workers AI、Browser Run、R2 和 Workflows 通过 `worker/wrangler.jsonc` 中的 Cloudflare bindings 访问，无需在应用中保存对应 API Token。
 
 ### 本地运行
 
@@ -96,7 +103,18 @@
   pnpm dev:worker
   ```
 
-  需要安装 Docker 以运行本地沙箱。Worker 会自动启动 OpenCode Agent 容器。
+  Browser Run Quick Actions 使用远程 binding，因此本地开发需要 Cloudflare 登录状态和网络连接，不需要 Docker。
+
+### 手动运行周刊
+
+```bash
+curl -u "$SERVER_USERNAME:$SERVER_PASSWORD" \
+  -H "Content-Type: application/json" \
+  -d '{"date":"2026-08-23"}' \
+  http://localhost:2442/runs
+```
+
+请求返回 Workflow 实例 ID。使用 `GET /runs/:id` 查询状态。生产环境也会按 `worker/wrangler.jsonc` 中的计划每周自动启动。
 
 ## 🚀 部署
 
@@ -118,8 +136,7 @@
 ## 📂 项目结构
 
 - `app/`：Next.js 应用源代码。
-- `agent/`：OpenCode Agent 配置和技能定义。
-- `worker/`：Cloudflare Worker 源代码。
+- `worker/`：Cloudflare Worker、Workflow、Workers AI 调用和网页抓取代码。
 - `collections/`：Payload CMS 数据模型。
 - `migrations/`：数据库迁移文件。
 - `public/`：静态资源。
