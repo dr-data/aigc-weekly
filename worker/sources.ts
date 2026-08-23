@@ -14,7 +14,6 @@ export interface ResearchSource {
 }
 
 const RSSHUB_SOURCES: ResearchSource[] = [
-  { name: 'HN Show', kind: 'rsshub', url: '/hackernews/show', priority: 'important' },
   { name: 'HN Best', kind: 'rsshub', url: '/hackernews/best', priority: 'important' },
   { name: 'AI日报', kind: 'rsshub', url: '/aibase/daily', priority: 'important' },
   { name: 'DeepSeek News', kind: 'rsshub', url: '/deepseek/news', priority: 'important' },

@@ -70,6 +70,8 @@ const MAX_SOURCE_CHARACTERS = 50_000
 const MAX_ARTICLE_CHARACTERS = 36_000
 const MAX_CANDIDATES_PER_SOURCE = 4
 const MAX_SELECTED_ARTICLES = 15
+const MAX_SELECTION_CANDIDATES = 30
+const MAX_HISTORICAL_RSS_CHARACTERS = 8_000
 
 function clip(content: string, maximum: number): string {
   if (content.length <= maximum)
@@ -475,38 +477,94 @@ export function deduplicateArticles(articles: WeeklyArticle[]): WeeklyArticle[] 
   return [...byUrl.values()].sort((a, b) => b.score - a.score)
 }
 
+export function selectArticlesByScore(
+  articles: WeeklyArticle[],
+  limit = MAX_SELECTED_ARTICLES,
+): WeeklyArticle[] {
+  const ranked = deduplicateArticles(articles)
+  if (ranked.length <= limit)
+    return ranked
+
+  const selected: WeeklyArticle[] = []
+  const used = new Set<string>()
+  const categories: WeeklyArticle['category'][] = ['news', 'model', 'tool']
+
+  for (const category of categories) {
+    if (selected.length >= limit)
+      break
+
+    const pick = ranked.find(article => article.category === category && !used.has(canonicalUrl(article.url)))
+    if (pick) {
+      selected.push(pick)
+      used.add(canonicalUrl(pick.url))
+    }
+  }
+
+  for (const article of ranked) {
+    if (selected.length >= limit)
+      break
+
+    const key = canonicalUrl(article.url)
+    if (used.has(key))
+      continue
+
+    selected.push(article)
+    used.add(key)
+  }
+
+  return selected.slice(0, limit)
+}
+
 export async function selectArticles(
   env: Cloudflare.Env,
   articles: WeeklyArticle[],
   historicalRss: string,
 ): Promise<WeeklyArticle[]> {
-  const candidates = deduplicateArticles(articles).slice(0, 30)
+  const candidates = deduplicateArticles(articles)
   if (candidates.length <= MAX_SELECTED_ARTICLES)
     return candidates
 
-  const output = await runModel(
-    env,
-    '你是 AIGC 週刊主編。全程使用繁體中文（台灣），只返回 JSON，不要輸出解釋或 Markdown 程式碼區塊。',
-    `从候选文章中选择最多 ${MAX_SELECTED_ARTICLES} 篇，兼顾资讯、模型、工具三类。
+  const pool = candidates.slice(0, MAX_SELECTION_CANDIDATES)
+  const compact = pool.map(article => ({
+    category: article.category,
+    score: article.score,
+    source: article.source,
+    title: article.title,
+    url: article.url,
+  }))
+
+  try {
+    const output = await runModel(
+      env,
+      '你是 AIGC 週刊主編。全程使用繁體中文（台灣），只返回 JSON，不要輸出解釋或 Markdown 程式碼區塊。',
+      `从候选文章中选择最多 ${MAX_SELECTED_ARTICLES} 篇，兼顾资讯、模型、工具三类。
 排除历史周刊中已报道的相同 URL、相同发布事件或高度重复主题。
 只能返回候选列表中已有的 URL。
 
 返回格式：{"urls":["https://..."]}
 
 候选：
-${JSON.stringify(candidates)}
+${JSON.stringify(compact)}
 
 历史 RSS：
-${clip(historicalRss, 24_000)}`,
-  )
+${clip(historicalRss, MAX_HISTORICAL_RSS_CHARACTERS)}`,
+      2_048,
+    )
 
-  const selected = parseModelJson<{ urls?: unknown } | null>(output)
-  const selectedUrls = Array.isArray(selected?.urls)
-    ? selected.urls.filter((url): url is string => typeof url === 'string')
-    : []
-  const urls = new Set(selectedUrls.map(canonicalUrl))
-  const matches = candidates.filter(article => urls.has(canonicalUrl(article.url)))
-  return matches.length > 0 ? matches.slice(0, MAX_SELECTED_ARTICLES) : candidates.slice(0, MAX_SELECTED_ARTICLES)
+    const selected = parseModelJson<{ urls?: unknown } | null>(output)
+    const selectedUrls = Array.isArray(selected?.urls)
+      ? selected.urls.filter((url): url is string => typeof url === 'string')
+      : []
+    const urls = new Set(selectedUrls.map(canonicalUrl))
+    const matches = pool.filter(article => urls.has(canonicalUrl(article.url)))
+    if (matches.length > 0)
+      return matches.slice(0, MAX_SELECTED_ARTICLES)
+  }
+  catch (error) {
+    console.warn('模型筛选失败，改用分数排序 fallback', error)
+  }
+
+  return selectArticlesByScore(pool)
 }
 
 export async function writeWeekly(

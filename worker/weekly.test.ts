@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { deduplicateArticles, isHnItemUrl, parseModelJson, parseWeeklyDraft } from './weekly'
+import { deduplicateArticles, isHnItemUrl, parseModelJson, parseWeeklyDraft, selectArticlesByScore } from './weekly'
 
 describe('isHnItemUrl', () => {
   it('detects Hacker News item pages', () => {
@@ -36,6 +36,47 @@ describe('deduplicateArticles', () => {
 
     expect(articles).toHaveLength(1)
     expect(articles[0]?.score).toBe(91)
+  })
+})
+
+describe('selectArticlesByScore', () => {
+  it('prefers category diversity before filling by score', () => {
+    const articles = [
+      {
+        category: 'tool' as const,
+        date: '2026-08-23',
+        reason: '工具',
+        score: 95,
+        source: 'A',
+        summary: '工具摘要',
+        title: '高分工具',
+        url: 'https://example.com/tool',
+      },
+      {
+        category: 'news' as const,
+        date: '2026-08-23',
+        reason: '资讯',
+        score: 80,
+        source: 'B',
+        summary: '资讯摘要',
+        title: '资讯稿',
+        url: 'https://example.com/news',
+      },
+      {
+        category: 'model' as const,
+        date: '2026-08-23',
+        reason: '模型',
+        score: 82,
+        source: 'C',
+        summary: '模型摘要',
+        title: '模型发布',
+        url: 'https://example.com/model',
+      },
+    ]
+
+    const selected = selectArticlesByScore(articles, 2)
+    expect(selected).toHaveLength(2)
+    expect(selected.map(article => article.category).sort()).toEqual(['model', 'news'])
   })
 })
 
