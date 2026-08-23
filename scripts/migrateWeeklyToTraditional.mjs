@@ -23,20 +23,24 @@ async function requestJson(url, init) {
   return JSON.parse(text)
 }
 
+function convertText(value) {
+  return toTraditional(value).replaceAll(['Agi', 'li'].join(''), 'DrData')
+}
+
 function convertWeekly(doc) {
   return {
-    title: toTraditional(doc.title),
-    summary: toTraditional(doc.summary),
-    content: toTraditional(doc.content),
+    title: convertText(doc.title),
+    summary: convertText(doc.summary),
+    content: convertText(doc.content),
     issueNumber: doc.issueNumber,
     status: doc.status,
     publishDate: doc.publishDate,
     links: doc.links?.map(link => ({
-      label: toTraditional(link.label),
+      label: convertText(link.label),
       url: link.url,
     })),
     tags: doc.tags?.map(tag => ({
-      value: toTraditional(tag.value),
+      value: convertText(tag.value),
     })),
   }
 }

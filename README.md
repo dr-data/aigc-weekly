@@ -1,4 +1,4 @@
-# Agili 的 AIGC 週刊
+# DrData 的 AIGC 週刊
 
 一个由 Agentic AI Agent 驱动的 AIGC（人工智能生成内容）精选周刊。本项目利用最新的 AI 和 Serverless 技术，为您提供最新的资讯、工具和资源。
 

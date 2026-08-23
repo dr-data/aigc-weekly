@@ -1,5 +1,5 @@
 /* eslint-disable node/prefer-global/process */
-const title = 'Agili 的 AIGC 週刊'
+const title = 'DrData 的 AIGC 週刊'
 const description = '由 Agentic AI Agent 驅動的 AIGC 精選周刊，每週收集最新 AI 進展、工具發現與深度觀點。'
 
 const keywords = ['AIGC', 'AI', '人工智慧', '生成式 AI', 'Agentic AI', 'AI 工具', 'AI 資訊', '周刊']
@@ -18,12 +18,12 @@ export const siteConfig = {
   applicationName: title,
   authors: [
     {
-      name: 'Agili',
+      name: 'DrData',
       url: baseUrl,
     },
   ],
-  creator: 'Agili',
-  publisher: 'Agili',
+  creator: 'DrData',
+  publisher: 'DrData',
   category: 'technology',
   openGraph: {
     type: 'website' as const,

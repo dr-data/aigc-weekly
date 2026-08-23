@@ -11,7 +11,7 @@ const DEFAULT_PAGE_SIZE = 3
 const MAX_PAGE_SIZE = 50
 const SITEMAP_PAGE_SIZE = 100
 const MAX_SITEMAP_PAGES = 1000
-const CACHE_VERSION = 'v2'
+const CACHE_VERSION = 'v3'
 
 const getPayloadClient = cache(async () => {
   const config = await payloadConfig
