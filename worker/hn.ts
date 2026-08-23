@@ -66,8 +66,12 @@ function hitToFeedItem(hit: AlgoliaHit): FeedItem | null {
 async function fetchAlgolia(
   path: string,
   params: Record<string, string>,
+  numericFilters: string[],
 ): Promise<FeedItem[]> {
   const query = new URLSearchParams(params)
+  for (const filter of numericFilters)
+    query.append('numericFilters', filter)
+
   const response = await fetch(`${ALGOLIA_BASE}${path}?${query}`, {
     headers: { 'User-Agent': 'AIGCWeeklyBot/1.0 (+https://ai.shor.lol)' },
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -128,24 +132,30 @@ export async function fetchHnFeedItems(kind: HnFeedKind, week: WeekInfo): Promis
     case 'algolia-week':
       return fetchAlgolia('/search_by_date', {
         hitsPerPage: String(MAX_ITEMS),
-        numericFilters: `created_at_i>=${start},created_at_i<=${end}`,
         tags: 'story',
-      })
+      }, [
+        `created_at_i>=${start}`,
+        `created_at_i<=${end}`,
+      ])
 
     case 'algolia-show':
       return fetchAlgolia('/search_by_date', {
         hitsPerPage: String(MAX_ITEMS),
-        numericFilters: `created_at_i>=${start},created_at_i<=${end}`,
         tags: 'show_hn',
-      })
+      }, [
+        `created_at_i>=${start}`,
+        `created_at_i<=${end}`,
+      ])
 
     case 'algolia-ai':
       return fetchAlgolia('/search_by_date', {
         hitsPerPage: String(MAX_ITEMS),
-        numericFilters: `created_at_i>=${start},created_at_i<=${end}`,
         query: 'AI OR LLM OR agent OR GPT OR Claude OR Gemini',
         tags: 'story',
-      })
+      }, [
+        `created_at_i>=${start}`,
+        `created_at_i<=${end}`,
+      ])
 
     case 'firebase-best': {
       const ids = await fetchFirebaseStoryIds('beststories')
