@@ -2,6 +2,7 @@ import type { ScrapeMethod, ScrapeResult } from './scraper'
 import type { ResearchSource } from './sources'
 import type { WeekInfo } from './week'
 
+import { AI_MODEL } from './config'
 import { createCloudflareScraper, ScrapeError } from './scraper'
 
 export interface WeeklyArticle {
@@ -61,7 +62,6 @@ interface ModelResponse {
   }[]
 }
 
-const MODEL = 'alibaba/qwen3-max'
 const MAX_SOURCE_CHARACTERS = 50_000
 const MAX_ARTICLE_CHARACTERS = 36_000
 const MAX_CANDIDATES_PER_SOURCE = 4
@@ -142,7 +142,7 @@ export function parseWeeklyDraft(content: string): WeeklyDraft {
 }
 
 async function runModel(env: Cloudflare.Env, system: string, prompt: string, maxTokens = 4096): Promise<string> {
-  const result = await env.AI.run(MODEL, {
+  const result = await env.AI.run(AI_MODEL, {
     max_tokens: maxTokens,
     messages: [
       { role: 'system', content: system },

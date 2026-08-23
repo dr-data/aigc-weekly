@@ -1,3 +1,4 @@
+import { AI_MODEL } from './config'
 import { readBrowserMarkdownResponse } from './scraper'
 
 interface DiagnosticCheck {
@@ -11,8 +12,6 @@ export interface DiagnosticReport {
   checks: DiagnosticCheck[]
   ok: boolean
 }
-
-const AI_MODEL = 'alibaba/qwen3-max'
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
