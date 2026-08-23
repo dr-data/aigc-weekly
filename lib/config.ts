@@ -3,7 +3,7 @@ const title = 'Agili 的 AIGC 周刊'
 const description = '由 Agentic AI Agent 驱动的 AIGC 精选周刊，每周收集最新 AI 进展、工具发现与深度观点。'
 
 const keywords = ['AIGC', 'AI', '人工智能', '生成式 AI', 'Agentic AI', 'AI 工具', 'AI 资讯', '周刊']
-const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL ?? 'https://aigc-weekly.agi.li').replace(/\/$/, '')
+const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL ?? 'https://ai.shor.lol').replace(/\/$/, '')
 const defaultImage = {
   url: '/og-image.png',
   width: 1200,

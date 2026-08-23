@@ -140,7 +140,7 @@ async function staticExtract(
   const response = await fetcher(target, {
     headers: {
       'Accept': 'text/markdown, text/html;q=0.9, application/rss+xml;q=0.8, application/xml;q=0.8, text/plain;q=0.7',
-      'User-Agent': 'AIGCWeeklyBot/1.0 (+https://aigc-weekly.agi.li)',
+      'User-Agent': 'AIGCWeeklyBot/1.0 (+https://ai.shor.lol)',
     },
     redirect: 'follow',
     signal: AbortSignal.timeout(requestTimeoutMs),

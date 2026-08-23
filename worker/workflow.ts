@@ -32,7 +32,8 @@ const STEP_OPTIONS = {
 
 async function getHistoricalRss(env: Cloudflare.Env): Promise<string> {
   try {
-    const result = await createCloudflareScraper(env).scrape('https://aigc-weekly.agi.li/rss.xml')
+    const baseUrl = env.PAYLOAD_BASE_URL.replace(/\/$/, '')
+    const result = await createCloudflareScraper(env).scrape(`${baseUrl}/rss.xml`)
     return result.content
   }
   catch (error) {

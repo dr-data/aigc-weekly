@@ -4,9 +4,9 @@
 
 ---
 
-**在线阅读**: <https://aigc-weekly.agi.li>
+**在线阅读**: <https://ai.shor.lol>
 
-**RSS订阅**: <https://aigc-weekly.agi.li/rss.xml>
+**RSS订阅**: <https://ai.shor.lol/rss.xml>
 
 ![aigc-weekly](https://socialify.git.ci/miantiao-me/aigc-weekly/image?description=1&forks=1&name=1&owner=1&pattern=Circuit+Board&stargazers=1&theme=Auto)
 
