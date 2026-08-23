@@ -193,7 +193,7 @@ async function findCandidates(
 ): Promise<Candidate[]> {
   const output = await runModel(
     env,
-    '你是 AIGC 新闻研究员。只返回 JSON，不要输出解释或 Markdown 代码块。',
+    '你是 AIGC 新聞研究員。全程使用繁體中文（台灣），只返回 JSON，不要輸出解釋或 Markdown 程式碼區塊。',
     `从以下页面中找出发布日期在 ${week.startDate} 至 ${week.endDate}（UTC）之间、与生成式 AI、LLM、AI Agent 或 AI 编程直接相关的文章。
 最多返回 ${MAX_CANDIDATES_PER_SOURCE} 篇。不要编造页面中不存在的 URL 或日期。无法确认日期时 date 使用空字符串。
 
@@ -229,12 +229,12 @@ async function scoreArticle(
 ): Promise<WeeklyArticle | null> {
   const output = await runModel(
     env,
-    '你是严格的 AIGC 周刊主编。只返回 JSON，不要输出解释或 Markdown 代码块。',
+    '你是嚴格的 AIGC 週刊主編。全程使用繁體中文（台灣），只返回 JSON，不要輸出解釋或 Markdown 程式碼區塊。',
     `评估这篇文章，按相关性 0-40、影响力/新颖性 0-30、实操性 0-30 打分。
 营销软文、与 AIGC 无关内容应低于 70 分。若是 GitHub 项目且正文明确显示少于 100 Stars，应低于 70 分。
 
 返回格式：
-{"relevance":0,"impact":0,"utility":0,"category":"news|model|tool","summary":"2-4 句中文事实摘要","reason":"1-2 句入选或淘汰理由"}
+{"relevance":0,"impact":0,"utility":0,"category":"news|model|tool","summary":"2-4 句繁體中文事實摘要","reason":"1-2 句入選或淘汰理由"}
 
 标题：${candidate.title}
 URL：${candidate.url}
@@ -375,7 +375,7 @@ export async function selectArticles(
 
   const output = await runModel(
     env,
-    '你是 AIGC 周刊主编。只返回 JSON，不要输出解释或 Markdown 代码块。',
+    '你是 AIGC 週刊主編。全程使用繁體中文（台灣），只返回 JSON，不要輸出解釋或 Markdown 程式碼區塊。',
     `从候选文章中选择最多 ${MAX_SELECTED_ARTICLES} 篇，兼顾资讯、模型、工具三类。
 排除历史周刊中已报道的相同 URL、相同发布事件或高度重复主题。
 只能返回候选列表中已有的 URL。
@@ -405,10 +405,10 @@ export async function writeWeekly(
 ): Promise<WeeklyDraft> {
   const output = await runModel(
     env,
-    `你是面向科技爱好者和开发者的中文科技专栏作家。
-写作应简单、人性化、清晰、专业客观，不堆砌形容词。所有事实必须来自输入素材。
-原文链接必须用贴近标题或核心名词的锚文本自然嵌入段落，禁止单列“原文链接”或“阅读更多”。`,
-    `撰写“Agili 的 AIGC 周刊（${week.weekId}）”。
+    `你是面向科技愛好者和開發者的繁體中文（台灣）科技專欄作家。
+寫作應簡單、人性化、清晰、專業客觀，不堆砌形容詞。所有事實必須來自輸入素材。
+原文連結必須用貼近標題或核心名詞的錨點文字自然嵌入段落，禁止單列「原文連結」或「閱讀更多」。`,
+    `撰寫「Agili 的 AIGC 週刊（${week.weekId}）」。
 正文使用 Markdown，包含简短开场白、资讯、模型、工具和结束语。没有素材的分类可以省略。
 每条素材写成连贯段落，不要在标题后附发布日期。
 
@@ -431,7 +431,7 @@ export async function reviewWeekly(
 ): Promise<{ critique: string, pass: boolean }> {
   const output = await runModel(
     env,
-    '你是严格的中文科技周刊审稿人。只返回 JSON，不要输出解释或 Markdown 代码块。',
+    '你是嚴格的繁體中文（台灣）科技週刊審稿人。只返回 JSON，不要輸出解釋或 Markdown 程式碼區塊。',
     `检查草稿是否满足：
 1. 内容与 AIGC 高度相关且没有营销软文；
 2. 没有超出素材的事实断言；
@@ -459,7 +459,7 @@ export async function reviseWeekly(
 ): Promise<WeeklyDraft> {
   const output = await runModel(
     env,
-    '你是中文科技专栏作家。根据审稿意见修订，不得删除有效原文链接或添加输入中不存在的事实。只返回 JSON。',
+    '你是繁體中文（台灣）科技專欄作家。根據審稿意見修訂，不得刪除有效原文連結或加入輸入中不存在的事實。只返回 JSON。',
     `返回格式：{"title":"标题","summary":"摘要","content":"Markdown 正文","tags":["标签"]}
 
 审稿意见：

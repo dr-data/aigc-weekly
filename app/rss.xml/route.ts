@@ -23,7 +23,7 @@ export async function GET() {
     feed_url: `${baseUrl}/rss.xml`,
     site_url: baseUrl,
     image_url: `${baseUrl}/favicon.ico`,
-    language: 'zh-CN',
+    language: 'zh-TW',
     pubDate: new Date(),
     copyright: `Copyright ${new Date().getFullYear()} ${siteConfig.title}`,
     ttl: 1440, // 24 hours in minutes

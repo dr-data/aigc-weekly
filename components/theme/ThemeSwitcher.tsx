@@ -41,7 +41,7 @@ export function ThemeSwitcher() {
       <ul className="menu menu--desktop menu--theme-selector">
         <li className="menu__item menu__dropdown-wrapper">
           <span className="menu__trigger" aria-hidden="true">
-            Theme
+            主題
             {' '}
             <span aria-hidden="true">▾</span>
           </span>
@@ -64,7 +64,7 @@ export function ThemeSwitcher() {
           type="button"
           onClick={() => setIsOpen(!isOpen)}
         >
-          {themes.find(preset => preset.id === theme)?.label ?? 'Theme'}
+          {themes.find(preset => preset.id === theme)?.label ?? '主題'}
           {' '}
           <span aria-hidden="true">▾</span>
         </button>

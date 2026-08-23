@@ -4,9 +4,9 @@ import { siteConfig } from '@/lib/config'
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: siteConfig.title,
-    short_name: 'AIGC 周刊',
+    short_name: 'AIGC 週刊',
     description: siteConfig.description,
-    lang: 'zh-Hans',
+    lang: 'zh-Hant',
     start_url: '/',
     scope: '/',
     display: 'standalone',

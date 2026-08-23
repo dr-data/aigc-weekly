@@ -1,8 +1,8 @@
 /* eslint-disable node/prefer-global/process */
-const title = 'Agili 的 AIGC 周刊'
-const description = '由 Agentic AI Agent 驱动的 AIGC 精选周刊，每周收集最新 AI 进展、工具发现与深度观点。'
+const title = 'Agili 的 AIGC 週刊'
+const description = '由 Agentic AI Agent 驅動的 AIGC 精選周刊，每週收集最新 AI 進展、工具發現與深度觀點。'
 
-const keywords = ['AIGC', 'AI', '人工智能', '生成式 AI', 'Agentic AI', 'AI 工具', 'AI 资讯', '周刊']
+const keywords = ['AIGC', 'AI', '人工智慧', '生成式 AI', 'Agentic AI', 'AI 工具', 'AI 資訊', '周刊']
 const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL ?? 'https://ai.shor.lol').replace(/\/$/, '')
 const defaultImage = {
   url: '/og-image.png',
@@ -27,7 +27,7 @@ export const siteConfig = {
   category: 'technology',
   openGraph: {
     type: 'website' as const,
-    locale: 'zh_CN',
+    locale: 'zh_TW',
     url: baseUrl,
     title,
     description,

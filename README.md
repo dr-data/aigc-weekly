@@ -1,4 +1,4 @@
-# Agili 的 AIGC 周刊
+# Agili 的 AIGC 週刊
 
 一个由 Agentic AI Agent 驱动的 AIGC（人工智能生成内容）精选周刊。本项目利用最新的 AI 和 Serverless 技术，为您提供最新的资讯、工具和资源。
 
@@ -8,7 +8,7 @@
 
 **RSS订阅**: <https://ai.shor.lol/rss.xml>
 
-![aigc-weekly](https://socialify.git.ci/miantiao-me/aigc-weekly/image?description=1&forks=1&name=1&owner=1&pattern=Circuit+Board&stargazers=1&theme=Auto)
+![aigc-weekly](https://socialify.git.ci/dr-data/aigc-weekly/image?description=1&forks=1&name=1&owner=1&pattern=Circuit+Board&stargazers=1&theme=Auto)
 
 ## 🚀 特性
 
@@ -53,7 +53,7 @@
 1. 克隆仓库：
 
    ```bash
-   git clone https://github.com/miantiao-me/aigc-weekly.git
+   git clone https://github.com/dr-data/aigc-weekly.git
    cd aigc-weekly
    ```
 

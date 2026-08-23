@@ -27,7 +27,7 @@ function HeaderNav() {
 export function TerminalLayout({ header, children, footer }: TerminalLayoutProps) {
   return (
     <div className="container">
-      <a href="#main-content" className="skip-link">跳到主要内容</a>
+      <a href="#main-content" className="skip-link">跳到主要內容</a>
 
       <header className="header">
         <HeaderNav />

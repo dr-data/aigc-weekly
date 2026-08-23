@@ -8,7 +8,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { sqliteD1Adapter } from '@payloadcms/db-d1-sqlite'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { r2Storage } from '@payloadcms/storage-r2'
-import { zh } from '@payloadcms/translations/languages/zh'
+import { zhTw } from '@payloadcms/translations/languages/zhTw'
 import { buildConfig } from 'payload'
 
 import { Media } from './collections/Media'
@@ -40,8 +40,8 @@ export default buildConfig({
   csrf: [serverURL],
   editor: lexicalEditor(),
   i18n: {
-    supportedLanguages: { zh },
-    fallbackLanguage: 'zh',
+    supportedLanguages: { zhTw },
+    fallbackLanguage: 'zhTw',
   },
   secret: process.env.PAYLOAD_SECRET || '',
   serverURL,

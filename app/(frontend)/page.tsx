@@ -18,10 +18,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
   const { hasNextPage, hasPrevPage } = weeklyList.pagination
   const prevLink = hasPrevPage
-    ? { href: `/?page=${weeklyList.pagination.page - 1}`, text: '上一页' }
+    ? { href: `/?page=${weeklyList.pagination.page - 1}`, text: '上一頁' }
     : undefined
   const nextLink = hasNextPage
-    ? { href: `/?page=${weeklyList.pagination.page + 1}`, text: '下一页' }
+    ? { href: `/?page=${weeklyList.pagination.page + 1}`, text: '下一頁' }
     : undefined
 
   return (
@@ -35,15 +35,15 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </p>
           <p>
             <a href={rssUrl} rel="alternate noopener noreferrer" target="_blank">
-              RSS 订阅
+              RSS 訂閱
             </a>
             <span>
               {' '}
               ::
               {' '}
             </span>
-            <a href="https://github.com/miantiao-me/aigc-weekly" target="_blank" rel="noopener noreferrer">
-              GitHub 仓库
+            <a href="https://github.com/dr-data/aigc-weekly" target="_blank" rel="noopener noreferrer">
+              GitHub 儲存庫
             </a>
           </p>
         </div>
@@ -61,12 +61,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             <TagList tags={item.tags} />
 
             <div className="post-content">
-              {item.summary ? <p>{item.summary}</p> : <p>暂无摘要。</p>}
+              {item.summary ? <p>{item.summary}</p> : <p>暫無摘要。</p>}
             </div>
 
             <div>
               <Link className="read-more button inline" href={`/weekly/${item.slug}`}>
-                阅读更多
+                閱讀更多
               </Link>
             </div>
           </article>
