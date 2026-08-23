@@ -58,5 +58,6 @@ Browser Run 和 Jina Reader 都不能保证绕过验证码、登录墙或网站�
 ## 运维接口
 
 - `GET /health`：公开健康检查。
+- `GET /diagnostics`：通过 Basic Auth 低成本检查 Payload、R2、Browser Run、Workers AI 和 Jina Reader，不返回任何 secret。
 - `POST /runs`：通过 Basic Auth 手动启动，可传 `{"date":"YYYY-MM-DD"}`。
 - `GET /runs/:id`：通过 Basic Auth 查询 Workflow 状态。
