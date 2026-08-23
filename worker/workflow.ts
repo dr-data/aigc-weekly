@@ -49,8 +49,22 @@ function unexpectedFailure(source: string, url: string, error: unknown): Researc
   }
 }
 
+function assertWorkflowConfiguration(env: Cloudflare.Env): void {
+  const missing = [
+    ['PAYLOAD_BASE_URL', env.PAYLOAD_BASE_URL],
+    ['PAYLOAD_API_KEY', env.PAYLOAD_API_KEY],
+  ]
+    .filter(([, value]) => !value)
+    .map(([name]) => name)
+
+  if (missing.length > 0)
+    throw new Error(`周刊 Workflow 缺少必要配置：${missing.join(', ')}`)
+}
+
 export class WeeklyWorkflow extends WorkflowEntrypoint<Cloudflare.Env, WeeklyWorkflowParams> {
   async run(event: WorkflowEvent<WeeklyWorkflowParams>, step: WorkflowStep) {
+    assertWorkflowConfiguration(this.env)
+
     const targetDate = getWorkflowTargetDate(
       event.payload?.date,
       event.timestamp,
