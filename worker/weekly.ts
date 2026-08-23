@@ -1,8 +1,10 @@
-import type { ScrapeMethod, ScrapeResult } from './scraper'
+import type { ScrapeMethod } from './scraper'
 import type { ResearchSource } from './sources'
 import type { WeekInfo } from './week'
 
 import { AI_MODEL } from './config'
+import { fetchHnFeedItems } from './hn'
+import { fetchFeed, filterFeedItems, resolveFeedUrl } from './rss'
 import { createCloudflareScraper, ScrapeError } from './scraper'
 
 export interface WeeklyArticle {
@@ -26,9 +28,11 @@ export interface ResearchFailure {
 export interface SourceResearchResult {
   articles: WeeklyArticle[]
   failures: ResearchFailure[]
-  method?: ScrapeMethod
+  method?: ResearchMethod
   source: string
 }
+
+export type ResearchMethod = ScrapeMethod | 'hn-api' | 'rss' | 'rsshub'
 
 export interface WeeklyDraft {
   content: string
@@ -279,48 +283,72 @@ function failureFrom(error: unknown, source: ResearchSource, url: string): Resea
   }
 }
 
-export async function researchSource(
+function feedItemToCandidate(item: { date: string, summary: string, title: string, url: string }): Candidate {
+  return {
+    date: item.date,
+    summary: item.summary,
+    title: item.title,
+    url: item.url,
+  }
+}
+
+async function collectCandidates(
   env: Cloudflare.Env,
   source: ResearchSource,
   week: WeekInfo,
-  artifactPrefix: string,
-): Promise<SourceResearchResult> {
+): Promise<{ candidates: Candidate[], method: ResearchMethod, snapshot: string }> {
+  switch (source.kind) {
+    case 'rss':
+    case 'rsshub': {
+      const feedUrl = resolveFeedUrl(source.kind, source.url, env)
+      const feed = await fetchFeed(feedUrl)
+      const candidates = filterFeedItems(feed.items, week).map(feedItemToCandidate)
+      return {
+        candidates,
+        method: source.kind === 'rsshub' ? 'rsshub' : 'rss',
+        snapshot: feed.raw,
+      }
+    }
+
+    case 'hn': {
+      if (!source.hnFeed)
+        throw new Error('HN 来源缺少 hnFeed 配置')
+
+      const items = await fetchHnFeedItems(source.hnFeed, week)
+      return {
+        candidates: items.map(feedItemToCandidate),
+        method: 'hn-api',
+        snapshot: JSON.stringify(items, null, 2),
+      }
+    }
+
+    default: {
+      const scraper = createCloudflareScraper(env)
+      const landing = await scraper.scrape(source.url)
+      const candidates = await findCandidates(env, source, week, landing.content)
+      return {
+        candidates,
+        method: landing.method,
+        snapshot: landing.content,
+      }
+    }
+  }
+}
+
+async function scoreCandidates(
+  env: Cloudflare.Env,
+  source: ResearchSource,
+  candidates: Candidate[],
+  failures: ResearchFailure[],
+  landingContentByUrl: Map<string, string>,
+): Promise<WeeklyArticle[]> {
   const scraper = createCloudflareScraper(env)
-  const failures: ResearchFailure[] = []
-  let landing: ScrapeResult
-
-  try {
-    landing = await scraper.scrape(source.url)
-  }
-  catch (error) {
-    failures.push(failureFrom(error, source, source.url))
-    return { articles: [], failures, source: source.name }
-  }
-
-  await env.AGENT_STORAGE.put(`${artifactPrefix}/sources/${encodeURIComponent(source.name)}.md`, landing.content, {
-    customMetadata: {
-      method: landing.method,
-      source: source.name,
-      url: source.url,
-    },
-    httpMetadata: { contentType: 'text/markdown; charset=utf-8' },
-  })
-
-  let candidates: Candidate[]
-  try {
-    candidates = await findCandidates(env, source, week, landing.content)
-  }
-  catch (error) {
-    failures.push(failureFrom(error, source, source.url))
-    return { articles: [], failures, method: landing.method, source: source.name }
-  }
-
   const articles: WeeklyArticle[] = []
+
   for (const candidate of candidates) {
     try {
-      const articleContent = candidate.url === landing.url
-        ? landing.content
-        : (await scraper.scrape(candidate.url)).content
+      const cached = landingContentByUrl.get(candidate.url)
+      const articleContent = cached ?? (await scraper.scrape(candidate.url)).content
       const article = await scoreArticle(env, source, candidate, articleContent)
       if (article)
         articles.push(article)
@@ -330,10 +358,52 @@ export async function researchSource(
     }
   }
 
+  return articles
+}
+
+export async function researchSource(
+  env: Cloudflare.Env,
+  source: ResearchSource,
+  week: WeekInfo,
+  artifactPrefix: string,
+): Promise<SourceResearchResult> {
+  const failures: ResearchFailure[] = []
+
+  let method: ResearchMethod
+  let snapshot: string
+  let candidates: Candidate[]
+
+  try {
+    const collected = await collectCandidates(env, source, week)
+    method = collected.method
+    snapshot = collected.snapshot
+    candidates = collected.candidates
+  }
+  catch (error) {
+    failures.push(failureFrom(error, source, source.url))
+    return { articles: [], failures, source: source.name }
+  }
+
+  await env.AGENT_STORAGE.put(`${artifactPrefix}/sources/${encodeURIComponent(source.name)}.md`, clip(snapshot, MAX_SOURCE_CHARACTERS), {
+    customMetadata: {
+      kind: source.kind,
+      method,
+      source: source.name,
+      url: source.url,
+    },
+    httpMetadata: { contentType: 'text/markdown; charset=utf-8' },
+  })
+
+  const landingContentByUrl = new Map<string, string>()
+  if (source.kind === 'url')
+    landingContentByUrl.set(source.url, snapshot)
+
+  const articles = await scoreCandidates(env, source, candidates, failures, landingContentByUrl)
+
   return {
     articles,
     failures,
-    method: landing.method,
+    method,
     source: source.name,
   }
 }

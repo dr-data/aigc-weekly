@@ -1,64 +1,79 @@
+import type { HnFeedKind } from './hn'
+
 import type { WeekInfo } from './week'
 
+export type ResearchSourceKind = 'hn' | 'rss' | 'rsshub' | 'url'
+
 export interface ResearchSource {
+  hnFeed?: HnFeedKind
+  kind: ResearchSourceKind
   name: string
-  url: string
   priority: 'important' | 'blog' | 'kol'
+  /** `rss` 为完整 Feed URL；`rsshub` 为路径（如 `/hackernews/best`）；`url` / `hn` 为说明性 URL */
+  url: string
 }
 
-const STATIC_SOURCES: ResearchSource[] = [
-  { name: 'Hacker News Show', url: 'https://news.ycombinator.com/show', priority: 'important' },
-  { name: 'Miantiao Drafts', url: 'https://drafts.miantiao.me/', priority: 'important' },
-  { name: 'Solidot AI', url: 'https://www.solidot.org/search?tid=151', priority: 'important' },
-  { name: 'Poche Explore', url: 'https://poche.app/explore', priority: 'important' },
-  { name: 'daily.dev AI', url: 'https://app.daily.dev/squads/ai', priority: 'important' },
-  { name: 'daily.dev Prompt Engineering', url: 'https://app.daily.dev/squads/promptengineering', priority: 'important' },
-  { name: 'daily.dev Vibecoding', url: 'https://app.daily.dev/squads/vibecoding', priority: 'important' },
-  { name: 'Engineering.fyi Generative AI', url: 'https://engineering.fyi/tag/generative-ai', priority: 'important' },
-  { name: 'Every Newsletter', url: 'https://every.to/newsletter', priority: 'important' },
-  { name: 'HackerNoon AI', url: 'https://hackernoon.com/c/ai', priority: 'important' },
-  { name: 'Anthropic Engineering', url: 'https://www.anthropic.com/engineering', priority: 'blog' },
-  { name: 'Anthropic Research', url: 'https://www.anthropic.com/research', priority: 'blog' },
-  { name: 'Claude Blog', url: 'https://claude.com/blog', priority: 'blog' },
-  { name: 'OpenAI Developers', url: 'https://developers.openai.com/', priority: 'blog' },
-  { name: 'Google DeepMind', url: 'https://deepmind.google/blog/', priority: 'blog' },
-  { name: 'GitHub AI & ML', url: 'https://github.blog/ai-and-ml/', priority: 'blog' },
-  { name: 'Continue Blog', url: 'https://blog.continue.dev/', priority: 'blog' },
-  { name: 'Kilo AI Blog', url: 'https://blog.kilo.ai/', priority: 'blog' },
-  { name: 'Cline Blog', url: 'https://cline.bot/blog/archive', priority: 'blog' },
-  { name: 'Amp Chronicle', url: 'https://ampcode.com/chronicle', priority: 'blog' },
-  { name: 'Cognition Blog', url: 'https://cognition.ai/blog/1', priority: 'blog' },
-  { name: 'Manus Blog', url: 'https://manus.im/zh-cn/blog', priority: 'blog' },
-  { name: 'Augmented SWE', url: 'https://www.augmentedswe.com/', priority: 'blog' },
-  { name: 'Adventures in Claude', url: 'https://adventuresinclaude.ai/', priority: 'blog' },
-  { name: 'Sources News', url: 'https://sources.news/', priority: 'blog' },
-  { name: 'Cursor', url: 'https://cursor.com/', priority: 'blog' },
-  { name: '宝玉', url: 'https://baoyu.io/', priority: 'kol' },
-  { name: 'Ben’s Bites', url: 'https://www.bensbites.com/', priority: 'kol' },
-  { name: 'Andrej Karpathy', url: 'https://karpathy.bearblog.dev/blog/', priority: 'kol' },
-  { name: 'Matt Shumer', url: 'https://shumer.dev/blog', priority: 'kol' },
-  { name: 'Aman Khan', url: 'https://amankhan1.substack.com/', priority: 'kol' },
-  { name: 'Lenny’s Newsletter', url: 'https://www.lennysnewsletter.com/feed?sectionId=198869', priority: 'kol' },
-  { name: 'Latent Space', url: 'https://www.latent.space/feed', priority: 'kol' },
-  { name: 'One Useful Thing', url: 'https://www.oneusefulthing.org/feed', priority: 'kol' },
-  { name: 'Interconnects', url: 'https://www.interconnects.ai/feed', priority: 'kol' },
-  { name: 'Ruben', url: 'https://ruben.substack.com/', priority: 'kol' },
+const RSSHUB_SOURCES: ResearchSource[] = [
+  { name: 'HN Front Page', kind: 'rsshub', url: '/hackernews', priority: 'important' },
+  { name: 'HN Show', kind: 'rsshub', url: '/hackernews/show', priority: 'important' },
+  { name: 'HN Best', kind: 'rsshub', url: '/hackernews/best', priority: 'important' },
+  { name: 'AI日报', kind: 'rsshub', url: '/aibase/daily', priority: 'important' },
+  { name: 'OpenAI News', kind: 'rsshub', url: '/openai/news', priority: 'important' },
+  { name: 'DeepSeek News', kind: 'rsshub', url: '/deepseek/news', priority: 'important' },
+  { name: 'Anthropic News', kind: 'rsshub', url: '/anthropic/news', priority: 'blog' },
+  { name: 'Anthropic Engineering', kind: 'rsshub', url: '/anthropic/engineering', priority: 'blog' },
+  { name: 'Anthropic Research', kind: 'rsshub', url: '/anthropic/research', priority: 'blog' },
+  { name: 'Cursor Blog', kind: 'rsshub', url: '/cursor/blog', priority: 'blog' },
+  { name: '宝玉 Blog', kind: 'rsshub', url: '/baoyu/blog', priority: 'kol' },
+  { name: 'Product Hunt Today', kind: 'rsshub', url: '/producthunt/today', priority: 'important' },
+  { name: '每日 AI 资讯', kind: 'rsshub', url: '/ai-bot/daily-ai-news', priority: 'important' },
+  { name: 'Hugging Face Trending Spaces', kind: 'rsshub', url: '/huggingface/spaces-trending', priority: 'important' },
+  { name: 'Trending arXiv Papers', kind: 'rsshub', url: '/trendingpapers/papers', priority: 'important' },
+  { name: 'TechCrunch News', kind: 'rsshub', url: '/techcrunch/news', priority: 'important' },
+  { name: 'Solidot Linux', kind: 'rsshub', url: '/solidot/linux', priority: 'important' },
+  { name: 'GitHub Trending', kind: 'rsshub', url: '/github/trending', priority: 'important' },
+  { name: 'V2EX Latest', kind: 'rsshub', url: '/v2ex/topics/latest', priority: 'kol' },
 ]
 
-export function getResearchSources(week: WeekInfo): ResearchSource[] {
-  const hackerNews: ResearchSource[] = []
-  const start = new Date(`${week.startDate}T00:00:00Z`)
+const NATIVE_RSS_SOURCES: ResearchSource[] = [
+  { name: 'Google DeepMind', kind: 'rss', url: 'https://deepmind.google/blog/rss.xml', priority: 'blog' },
+  { name: 'Hugging Face Blog', kind: 'rss', url: 'https://huggingface.co/blog/feed.xml', priority: 'blog' },
+  { name: 'Simon Willison', kind: 'rss', url: 'https://simonwillison.net/atom/everything/', priority: 'kol' },
+  { name: 'Lenny’s Newsletter', kind: 'rss', url: 'https://www.lennysnewsletter.com/feed?sectionId=198869', priority: 'kol' },
+  { name: 'Latent Space', kind: 'rss', url: 'https://www.latent.space/feed', priority: 'kol' },
+  { name: 'One Useful Thing', kind: 'rss', url: 'https://www.oneusefulthing.org/feed', priority: 'kol' },
+  { name: 'Interconnects', kind: 'rss', url: 'https://www.interconnects.ai/feed', priority: 'kol' },
+  { name: 'Ben’s Bites', kind: 'rss', url: 'https://www.bensbites.com/feed', priority: 'kol' },
+]
 
-  for (let offset = 0; offset < 7; offset++) {
-    const current = new Date(start)
-    current.setUTCDate(start.getUTCDate() + offset)
-    const date = current.toISOString().slice(0, 10)
-    hackerNews.push({
-      name: `Hacker News ${date}`,
-      url: `https://news.ycombinator.com/front?day=${date}`,
-      priority: 'important',
-    })
-  }
+const HN_ADAPTER_SOURCES: ResearchSource[] = [
+  {
+    name: 'HN AI 本周',
+    kind: 'hn',
+    hnFeed: 'algolia-ai',
+    url: 'https://hn.algolia.com',
+    priority: 'important',
+  },
+  {
+    name: 'HN Show 本周',
+    kind: 'hn',
+    hnFeed: 'algolia-show',
+    url: 'https://hn.algolia.com',
+    priority: 'important',
+  },
+]
 
-  return [...hackerNews, ...STATIC_SOURCES]
+const URL_SOURCES: ResearchSource[] = [
+  { name: 'Miantiao Drafts', kind: 'url', url: 'https://drafts.miantiao.me/', priority: 'important' },
+  { name: 'Every Newsletter', kind: 'url', url: 'https://every.to/newsletter', priority: 'important' },
+  { name: 'HackerNoon AI', kind: 'url', url: 'https://hackernoon.com/c/ai', priority: 'important' },
+]
+
+export function getResearchSources(_week: WeekInfo): ResearchSource[] {
+  return [
+    ...HN_ADAPTER_SOURCES,
+    ...RSSHUB_SOURCES,
+    ...NATIVE_RSS_SOURCES,
+    ...URL_SOURCES,
+  ]
 }

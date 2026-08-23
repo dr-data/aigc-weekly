@@ -1,4 +1,5 @@
 import { AI_MODEL } from './config'
+import { fetchFeed, getRssHubBase } from './rss'
 import { readBrowserMarkdownResponse } from './scraper'
 
 interface DiagnosticCheck {
@@ -104,10 +105,17 @@ async function checkJinaReader(env: Cloudflare.Env): Promise<void> {
     throw new Error('Jina Reader 未返回预期正文')
 }
 
+async function checkRssHub(env: Cloudflare.Env): Promise<void> {
+  const feed = await fetchFeed(`${getRssHubBase(env)}/hackernews/best`)
+  if (feed.items.length === 0)
+    throw new Error('RSSHub 未返回任何条目')
+}
+
 export async function runDiagnostics(env: Cloudflare.Env): Promise<DiagnosticReport> {
   const operations = [
     check('payload', () => checkPayload(env)),
     check('r2', () => checkR2(env)),
+    check('rsshub', () => checkRssHub(env)),
     check('browser-run', () => checkBrowserRun(env)),
     check('workers-ai', () => checkWorkersAI(env)),
   ]
