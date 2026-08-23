@@ -7,7 +7,7 @@ import { WorkflowEntrypoint } from 'cloudflare:workers'
 import { publishWeekly } from './payload'
 import { createCloudflareScraper } from './scraper'
 import { getResearchSources } from './sources'
-import { getWeekInfo } from './week'
+import { getWeekInfo, getWorkflowTargetDate } from './week'
 import {
   deduplicateArticles,
   researchSource,
@@ -51,7 +51,12 @@ function unexpectedFailure(source: string, url: string, error: unknown): Researc
 
 export class WeeklyWorkflow extends WorkflowEntrypoint<Cloudflare.Env, WeeklyWorkflowParams> {
   async run(event: WorkflowEvent<WeeklyWorkflowParams>, step: WorkflowStep) {
-    const week = getWeekInfo(event.payload?.date)
+    const targetDate = getWorkflowTargetDate(
+      event.payload?.date,
+      event.timestamp,
+      event.schedule?.scheduledTime,
+    )
+    const week = getWeekInfo(targetDate)
     const artifactPrefix = `weekly-agent/${week.weekId}/${event.instanceId}`
     const sources = getResearchSources(week)
     const researchResults: SourceResearchResult[] = []

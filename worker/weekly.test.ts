@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { deduplicateArticles, parseModelJson } from './weekly'
+import { deduplicateArticles, parseModelJson, parseWeeklyDraft } from './weekly'
 
 describe('deduplicateArticles', () => {
   it('keeps the highest scoring version of a repeated URL', () => {
@@ -39,5 +39,28 @@ describe('parseModelJson', () => {
 
   it('rejects non-JSON model output', () => {
     expect(() => parseModelJson('无法解析')).toThrow('模型未返回有效 JSON')
+  })
+})
+
+describe('parseWeeklyDraft', () => {
+  it('normalizes a complete model draft', () => {
+    expect(parseWeeklyDraft(JSON.stringify({
+      content: '  # 正文  ',
+      summary: '  摘要  ',
+      tags: ['模型', '工具'],
+      title: '  本周周刊  ',
+    }))).toEqual({
+      content: '# 正文',
+      summary: '摘要',
+      tags: ['模型', '工具'],
+      title: '本周周刊',
+    })
+  })
+
+  it('rejects missing or incorrectly typed fields', () => {
+    expect(() => parseWeeklyDraft('{"title":"标题","summary":"摘要","content":"正文"}'))
+      .toThrow('周刊字段不完整')
+    expect(() => parseWeeklyDraft('{"title":"标题","summary":"摘要","content":"正文","tags":"AI"}'))
+      .toThrow('周刊字段不完整')
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { createScraper } from './scraper'
+import { createScraper, readBrowserMarkdownResponse } from './scraper'
 
 const URL = 'https://example.com/article'
 
@@ -105,5 +105,25 @@ describe('scraper fallback chain', () => {
 
     await expect(scraper.scrape('http://127.0.0.1/private')).rejects.toThrow('不允许抓取私有网络地址')
     expect(fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('readBrowserMarkdownResponse', () => {
+  it('unwraps the Browser Run JSON response', async () => {
+    const response = Response.json({
+      result: '# Browser Run 正文',
+      success: true,
+    })
+
+    await expect(readBrowserMarkdownResponse(response)).resolves.toBe('# Browser Run 正文')
+  })
+
+  it('rejects Browser Run HTTP errors', async () => {
+    const response = Response.json(
+      { errors: [{ message: 'render failed' }], success: false },
+      { status: 503 },
+    )
+
+    await expect(readBrowserMarkdownResponse(response)).rejects.toThrow('Browser Run HTTP 503')
   })
 })

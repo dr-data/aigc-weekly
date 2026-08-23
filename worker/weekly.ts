@@ -117,6 +117,30 @@ export function parseModelJson<T>(content: string): T {
   }
 }
 
+export function parseWeeklyDraft(content: string): WeeklyDraft {
+  const draft = parseModelJson<unknown>(content)
+  if (!draft || typeof draft !== 'object')
+    throw new Error('模型返回的周刊字段不完整')
+
+  const value = draft as Record<string, unknown>
+  if (
+    typeof value.title !== 'string'
+    || typeof value.summary !== 'string'
+    || typeof value.content !== 'string'
+    || !Array.isArray(value.tags)
+    || value.tags.some(tag => typeof tag !== 'string')
+  ) {
+    throw new Error('模型返回的周刊字段不完整')
+  }
+
+  return {
+    content: value.content.trim(),
+    summary: value.summary.trim().slice(0, 200),
+    tags: value.tags.filter(Boolean).slice(0, 8),
+    title: value.title.trim(),
+  }
+}
+
 async function runModel(env: Cloudflare.Env, system: string, prompt: string, maxTokens = 4096): Promise<string> {
   const result = await env.AI.run(MODEL, {
     max_tokens: maxTokens,
@@ -130,15 +154,30 @@ async function runModel(env: Cloudflare.Env, system: string, prompt: string, max
   return getModelText(result)
 }
 
-function resolveCandidate(candidate: Candidate, source: ResearchSource): Candidate | null {
-  if (!candidate?.title || !candidate?.url)
+function resolveCandidate(candidate: unknown, source: ResearchSource): Candidate | null {
+  if (
+    !candidate
+    || typeof candidate !== 'object'
+  ) {
     return null
+  }
+
+  const value = candidate as Record<string, unknown>
+  if (
+    typeof value.title !== 'string'
+    || typeof value.url !== 'string'
+    || !value.title.trim()
+    || !value.url.trim()
+  ) {
+    return null
+  }
 
   try {
     return {
-      ...candidate,
-      title: candidate.title.trim(),
-      url: new URL(candidate.url, source.url).toString(),
+      date: typeof value.date === 'string' ? value.date : '',
+      summary: typeof value.summary === 'string' ? value.summary : '',
+      title: value.title.trim(),
+      url: new URL(value.url, source.url).toString(),
     }
   }
   catch {
@@ -167,8 +206,9 @@ async function findCandidates(
 ${clip(content, MAX_SOURCE_CHARACTERS)}`,
   )
 
-  const parsed = parseModelJson<{ articles?: Candidate[] }>(output)
-  return (parsed.articles ?? [])
+  const parsed = parseModelJson<{ articles?: unknown }>(output)
+  const articles = parsed && Array.isArray(parsed.articles) ? parsed.articles : []
+  return articles
     .map(candidate => resolveCandidate(candidate, source))
     .filter((candidate): candidate is Candidate => candidate !== null)
     .slice(0, MAX_CANDIDATES_PER_SOURCE)
@@ -203,23 +243,28 @@ URL：${candidate.url}
 ${clip(content, MAX_ARTICLE_CHARACTERS)}`,
   )
 
-  const scored = parseModelJson<ScoredArticle>(output)
+  const parsedScore = parseModelJson<unknown>(output)
+  const scored = parsedScore && typeof parsedScore === 'object'
+    ? parsedScore as Partial<ScoredArticle>
+    : {}
   const relevance = normalizeScore(scored.relevance, 40)
   const impact = normalizeScore(scored.impact, 30)
   const utility = normalizeScore(scored.utility, 30)
   const score = relevance + impact + utility
   const categories = new Set(['news', 'model', 'tool'])
 
-  if (score < 70 || !categories.has(scored.category))
+  if (score < 70 || typeof scored.category !== 'string' || !categories.has(scored.category))
     return null
 
   return {
-    category: scored.category,
+    category: scored.category as WeeklyArticle['category'],
     date: candidate.date || '',
-    reason: scored.reason?.trim() || '符合周刊选题标准',
+    reason: typeof scored.reason === 'string' ? scored.reason.trim() : '符合周刊选题标准',
     score,
     source: source.name,
-    summary: scored.summary?.trim() || candidate.summary?.trim() || '',
+    summary: typeof scored.summary === 'string'
+      ? scored.summary.trim()
+      : candidate.summary?.trim() || '',
     title: candidate.title,
     url: candidate.url,
   }
@@ -344,8 +389,11 @@ ${JSON.stringify(candidates)}
 ${clip(historicalRss, 24_000)}`,
   )
 
-  const selected = parseModelJson<{ urls?: string[] }>(output)
-  const urls = new Set((selected.urls ?? []).map(canonicalUrl))
+  const selected = parseModelJson<{ urls?: unknown } | null>(output)
+  const selectedUrls = Array.isArray(selected?.urls)
+    ? selected.urls.filter((url): url is string => typeof url === 'string')
+    : []
+  const urls = new Set(selectedUrls.map(canonicalUrl))
   const matches = candidates.filter(article => urls.has(canonicalUrl(article.url)))
   return matches.length > 0 ? matches.slice(0, MAX_SELECTED_ARTICLES) : candidates.slice(0, MAX_SELECTED_ARTICLES)
 }
@@ -373,16 +421,7 @@ ${JSON.stringify(articles)}`,
     8_192,
   )
 
-  const draft = parseModelJson<WeeklyDraft>(output)
-  if (!draft.title || !draft.summary || !draft.content)
-    throw new Error('模型返回的周刊字段不完整')
-
-  return {
-    content: draft.content.trim(),
-    summary: draft.summary.trim().slice(0, 200),
-    tags: Array.isArray(draft.tags) ? draft.tags.filter(Boolean).slice(0, 8) : [],
-    title: draft.title.trim(),
-  }
+  return parseWeeklyDraft(output)
 }
 
 export async function reviewWeekly(
@@ -406,10 +445,10 @@ export async function reviewWeekly(
 ${JSON.stringify(draft)}`,
   )
 
-  const review = parseModelJson<{ critique?: string, pass?: boolean }>(output)
+  const review = parseModelJson<{ critique?: unknown, pass?: unknown } | null>(output)
   return {
-    critique: review.critique?.trim() ?? '',
-    pass: review.pass === true,
+    critique: typeof review?.critique === 'string' ? review.critique.trim() : '',
+    pass: review?.pass === true,
   }
 }
 
@@ -431,5 +470,5 @@ ${JSON.stringify(draft)}`,
     8_192,
   )
 
-  return parseModelJson<WeeklyDraft>(output)
+  return parseWeeklyDraft(output)
 }

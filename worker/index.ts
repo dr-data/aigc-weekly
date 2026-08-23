@@ -2,13 +2,24 @@ import { getWeekInfo } from './week'
 
 export { WeeklyWorkflow } from './workflow'
 
+function constantTimeEqual(left: string, right: string): boolean {
+  const leftBytes = new TextEncoder().encode(left)
+  const rightBytes = new TextEncoder().encode(right)
+  const length = Math.max(leftBytes.length, rightBytes.length)
+  let difference = leftBytes.length ^ rightBytes.length
+
+  for (let index = 0; index < length; index++)
+    difference |= (leftBytes[index] ?? 0) ^ (rightBytes[index] ?? 0)
+
+  return difference === 0
+}
+
 function verifyBasicAuth(request: Request, env: Cloudflare.Env): Response | null {
   const username = env.SERVER_USERNAME
   const password = env.SERVER_PASSWORD
 
-  if (!password) {
-    return null
-  }
+  if (!username || !password)
+    return Response.json({ error: '服务认证尚未配置' }, { status: 503 })
 
   const authorization = request.headers.get('Authorization')
   if (!authorization?.startsWith('Basic ')) {
@@ -21,7 +32,7 @@ function verifyBasicAuth(request: Request, env: Cloudflare.Env): Response | null
   const expected = btoa(`${username}:${password}`)
   const provided = authorization.slice(6)
 
-  if (provided !== expected) {
+  if (!constantTimeEqual(provided, expected)) {
     return new Response('Unauthorized', { status: 401 })
   }
 
@@ -45,11 +56,11 @@ async function handleFetch(request: Request, env: Cloudflare.Env): Promise<Respo
   }
 
   if (request.method === 'POST' && url.pathname === '/runs') {
-    const body = await request.json<{ date?: string }>().catch(() => ({}))
+    const body: { date?: string } = await request.json<{ date?: string }>().catch(() => ({}))
     const week = getWeekInfo(body.date)
     const instance = await env.WEEKLY_WORKFLOW.create({
       id: `${week.weekId.toLowerCase()}-${crypto.randomUUID()}`,
-      params: { date: body.date },
+      params: { date: week.currentDate },
     })
 
     return Response.json({

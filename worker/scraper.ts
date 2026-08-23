@@ -46,6 +46,7 @@ const CHALLENGE_MARKERS = [
   /enable javascript and cookies/i,
   /captcha/i,
   /access denied/i,
+  /启用\s*javascript/i,
   /请完成安全验证/,
   /访问过于频繁/,
 ]
@@ -109,6 +110,8 @@ function isUsableContent(content: string, minimumContentLength: number): boolean
 
 function htmlToMarkdown(html: string, url: string): ExtractedContent | null {
   const { document } = parseHTML(html)
+  document.querySelectorAll('nav, aside, header, footer, script, style, noscript')
+    .forEach(element => element.remove())
   const article = new Readability(document as unknown as Document, { charThreshold: 20 }).parse()
   if (!article?.content)
     return null
@@ -223,12 +226,30 @@ export function createScraper(dependencies: ScraperDependencies, options: Scrape
   }
 }
 
+export async function readBrowserMarkdownResponse(response: Response): Promise<string> {
+  const body = await response.text()
+  if (!response.ok)
+    throw new Error(`Browser Run HTTP ${response.status}：${body.slice(0, 500)}`)
+
+  try {
+    const result = JSON.parse(body) as { result?: unknown, success?: unknown }
+    if (result.success !== true || typeof result.result !== 'string')
+      throw new Error('Browser Run 返回字段不完整')
+    return result.result
+  }
+  catch (error) {
+    if (error instanceof SyntaxError)
+      throw new Error('Browser Run 返回了无效 JSON')
+    throw error
+  }
+}
+
 async function browserMarkdown(browser: BrowserRun, url: string): Promise<string> {
   const response = await browser.quickAction('markdown', {
     rejectResourceTypes: ['image', 'media', 'font'],
     url,
   })
-  return response.text()
+  return readBrowserMarkdownResponse(response)
 }
 
 async function jinaRead(fetcher: typeof fetch, apiKey: string | undefined, url: string): Promise<string> {

@@ -13,6 +13,20 @@ function formatDate(date: Date): string {
   return date.toISOString().slice(0, 10)
 }
 
+export function getWorkflowTargetDate(
+  payloadDate: string | undefined,
+  eventTimestamp: Date,
+  scheduledTime?: number,
+): string {
+  if (payloadDate)
+    return payloadDate
+
+  const triggerTime = scheduledTime === undefined
+    ? eventTimestamp
+    : new Date(scheduledTime - 86_400_000)
+  return formatDate(triggerTime)
+}
+
 function parseDate(targetDate?: string): Date {
   if (!targetDate)
     return new Date()
