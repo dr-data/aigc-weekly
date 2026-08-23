@@ -146,16 +146,27 @@ export function parseWeeklyDraft(content: string): WeeklyDraft {
 }
 
 async function runModel(env: Cloudflare.Env, system: string, prompt: string, maxTokens = 4096): Promise<string> {
-  const result = await env.AI.run(AI_MODEL, {
-    max_tokens: maxTokens,
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: prompt },
-    ],
-    temperature: 0.2,
-  })
+  let lastError: unknown
 
-  return getModelText(result)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const result = await env.AI.run(AI_MODEL, {
+        max_tokens: maxTokens,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.2,
+      })
+
+      return getModelText(result)
+    }
+    catch (error) {
+      lastError = error
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('模型未返回文本内容')
 }
 
 function resolveCandidate(candidate: unknown, source: ResearchSource): Candidate | null {
