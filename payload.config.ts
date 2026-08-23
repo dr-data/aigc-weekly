@@ -40,8 +40,8 @@ export default buildConfig({
   csrf: [serverURL],
   editor: lexicalEditor(),
   i18n: {
-    supportedLanguages: { zhTw },
-    fallbackLanguage: 'zhTw',
+    supportedLanguages: { 'zh-TW': zhTw },
+    fallbackLanguage: 'zh-TW',
   },
   secret: process.env.PAYLOAD_SECRET || '',
   serverURL,
