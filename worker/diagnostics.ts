@@ -105,6 +105,25 @@ async function checkJinaReader(env: Cloudflare.Env): Promise<void> {
     throw new Error('Jina Reader 未返回预期正文')
 }
 
+async function checkGitHub(env: Cloudflare.Env): Promise<void> {
+  const repository = env.GITHUB_REPOSITORY ?? 'dr-data/aigc-weekly'
+  const response = await fetch(`https://api.github.com/repos/${repository}`, {
+    headers: {
+      'Accept': 'application/vnd.github+json',
+      'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
+      'User-Agent': 'aigc-weekly-worker',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+    signal: AbortSignal.timeout(15_000),
+  })
+  if (!response.ok)
+    throw new Error(`GitHub HTTP ${response.status}`)
+
+  const result = await response.json<{ full_name?: string }>()
+  if (!result.full_name)
+    throw new Error('GitHub Token 未识别到仓库')
+}
+
 async function checkRssHub(env: Cloudflare.Env): Promise<void> {
   const feed = await fetchFeed(`${getRssHubBase(env)}/hackernews/best`)
   if (feed.items.length === 0)
@@ -114,6 +133,7 @@ async function checkRssHub(env: Cloudflare.Env): Promise<void> {
 export async function runDiagnostics(env: Cloudflare.Env): Promise<DiagnosticReport> {
   const operations = [
     check('payload', () => checkPayload(env)),
+    check('github', () => checkGitHub(env)),
     check('r2', () => checkR2(env)),
     check('rsshub', () => checkRssHub(env)),
     check('browser-run', () => checkBrowserRun(env)),

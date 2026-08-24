@@ -7,6 +7,8 @@ function mockFetch() {
     const url = String(input)
     if (url.includes('/api/users/me'))
       return Response.json({ user: { id: 1 } })
+    if (url.includes('api.github.com/repos/'))
+      return Response.json({ full_name: 'dr-data/aigc-weekly' })
     if (url.includes('/hackernews/best')) {
       return new Response(`<?xml version="1.0"?><rss><channel><title>HN</title><item><title>Story</title><link>https://example.com/story</link></item></channel></rss>`)
     }
@@ -30,6 +32,7 @@ function createEnv() {
         success: true,
       })),
     },
+    GITHUB_TOKEN: 'github-token',
     PAYLOAD_API_KEY: 'test-key',
     PAYLOAD_BASE_URL: 'https://cms.example.com',
   } as unknown as Cloudflare.Env
@@ -48,6 +51,7 @@ describe('runDiagnostics', () => {
     expect(report.ok).toBe(true)
     expect(report.checks.map(check => check.name)).toEqual([
       'payload',
+      'github',
       'r2',
       'rsshub',
       'browser-run',
@@ -68,7 +72,7 @@ describe('runDiagnostics', () => {
       message: 'model unavailable',
       ok: false,
     })
-    expect(report.checks.filter(check => check.ok)).toHaveLength(4)
+    expect(report.checks.filter(check => check.ok)).toHaveLength(5)
   })
 
   it('checks Jina Reader only when an API key is configured', async () => {

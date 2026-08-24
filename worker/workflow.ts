@@ -4,6 +4,7 @@ import type { ResearchFailure, SourceResearchResult, WeeklyDraft } from './weekl
 
 import { WorkflowEntrypoint } from 'cloudflare:workers'
 
+import { publishWeeklyIssue } from './github'
 import { publishWeekly } from './payload'
 import { createCloudflareScraper } from './scraper'
 import { getResearchSources } from './sources'
@@ -52,6 +53,7 @@ function unexpectedFailure(source: string, url: string, error: unknown): Researc
 
 function assertWorkflowConfiguration(env: Cloudflare.Env): void {
   const missing = [
+    ['GITHUB_TOKEN', env.GITHUB_TOKEN],
     ['PAYLOAD_BASE_URL', env.PAYLOAD_BASE_URL],
     ['PAYLOAD_API_KEY', env.PAYLOAD_API_KEY],
   ]
@@ -155,12 +157,22 @@ export class WeeklyWorkflow extends WorkflowEntrypoint<Cloudflare.Env, WeeklyWor
       () => publishWeekly(this.env, week, draft),
     )
 
-    await step.do('保存最终产物', () => this.saveFinalArtifact(artifactPrefix, draft, published))
+    const githubIssue = await step.do(
+      '发布 GitHub Issue',
+      STEP_OPTIONS,
+      () => publishWeeklyIssue(this.env, week, draft, published),
+    )
+
+    await step.do(
+      '保存最终产物',
+      () => this.saveFinalArtifact(artifactPrefix, draft, published, githubIssue),
+    )
 
     return {
       artifactPrefix,
       articleCount: selected.length,
       failureCount: failures.length,
+      githubIssue,
       issueNumber: week.weekId,
       payload: published,
     }
@@ -170,6 +182,7 @@ export class WeeklyWorkflow extends WorkflowEntrypoint<Cloudflare.Env, WeeklyWor
     artifactPrefix: string,
     draft: WeeklyDraft,
     published: { id: number | string, operation: string },
+    githubIssue: { number: number, operation: string, url: string },
   ): Promise<void> {
     await Promise.all([
       this.env.AGENT_STORAGE.put(
@@ -179,7 +192,7 @@ export class WeeklyWorkflow extends WorkflowEntrypoint<Cloudflare.Env, WeeklyWor
       ),
       this.env.AGENT_STORAGE.put(
         `${artifactPrefix}/published.json`,
-        JSON.stringify(published, null, 2),
+        JSON.stringify({ githubIssue, payload: published }, null, 2),
         { httpMetadata: { contentType: 'application/json; charset=utf-8' } },
       ),
     ])
