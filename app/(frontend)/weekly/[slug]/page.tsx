@@ -152,7 +152,7 @@ function getWeeklyJsonLd(weekly: Weekly) {
         {
           '@type': 'ListItem',
           'position': 1,
-          'name': '首页',
+          'name': '首頁',
           'item': baseUrl,
         },
         {

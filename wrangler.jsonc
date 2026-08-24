@@ -9,6 +9,12 @@
   "minify": true,
   "upload_source_maps": true,
   "keep_vars": true,
+  "routes": [
+    {
+      "pattern": "ai.shor.lol",
+      "custom_domain": true
+    }
+  ],
   "cache": {
     "enabled": true
   },
@@ -36,7 +42,7 @@
   "d1_databases": [
     {
       "binding": "D1",
-      "database_id": "78b43f88-0962-4ed9-92c5-dee36227955a",
+      "database_id": "7a6676d9-68f3-461f-86bd-ed97aa1eaab9",
       "database_name": "aigc-weekly",
       "remote": true
     }

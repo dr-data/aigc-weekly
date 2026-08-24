@@ -8,7 +8,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { sqliteD1Adapter } from '@payloadcms/db-d1-sqlite'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { r2Storage } from '@payloadcms/storage-r2'
-import { zh } from '@payloadcms/translations/languages/zh'
+import { zhTw } from '@payloadcms/translations/languages/zhTw'
 import { buildConfig } from 'payload'
 
 import { Media } from './collections/Media'
@@ -20,6 +20,7 @@ const dirname = path.dirname(filename)
 
 const isCLI = process.argv.some(value => value.match(/^(generate|migrate):?/))
 const isProduction = process.env.NODE_ENV === 'production'
+const serverURL = (process.env.NEXT_PUBLIC_BASE_URL ?? 'https://ai.shor.lol').replace(/\/$/, '')
 
 type PayloadR2Bucket = R2StorageOptions['bucket']
 
@@ -35,12 +36,15 @@ export default buildConfig({
     },
   },
   collections: [Users, Weekly, Media],
+  cors: [serverURL],
+  csrf: [serverURL],
   editor: lexicalEditor(),
   i18n: {
-    supportedLanguages: { zh },
-    fallbackLanguage: 'zh',
+    supportedLanguages: { 'zh-TW': zhTw },
+    fallbackLanguage: 'zh-TW',
   },
   secret: process.env.PAYLOAD_SECRET || '',
+  serverURL,
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },

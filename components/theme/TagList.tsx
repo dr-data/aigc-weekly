@@ -13,7 +13,7 @@ export function TagList({ tags }: TagListProps) {
   const tagStrings = tags.map(tag => (typeof tag === 'string' ? tag : tag.value))
 
   return (
-    <ul className="post-tags" aria-label="标签">
+    <ul className="post-tags" aria-label="標籤">
       {tagStrings.map(tag => (
         <li key={tag} className="post-tag">
           #

@@ -41,7 +41,7 @@ export default async function RootLayout(props: { children: ReactNode }) {
   const websiteJsonLd = getWebsiteJsonLd()
 
   return (
-    <html lang="zh-Hans" suppressHydrationWarning>
+    <html lang="zh-Hant" suppressHydrationWarning>
       <body>
         <script
           type="application/ld+json"
@@ -67,7 +67,7 @@ function getWebsiteJsonLd() {
     'description': siteConfig.description,
     'url': baseUrl,
     'image': absoluteUrl(siteConfig.openGraph.images[0].url),
-    'inLanguage': 'zh-Hans',
+    'inLanguage': 'zh-Hant',
     'publisher': {
       '@type': 'Person',
       'name': siteConfig.creator,
