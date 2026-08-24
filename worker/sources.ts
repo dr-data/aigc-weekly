@@ -78,6 +78,19 @@ const NATIVE_RSS_SOURCES: ResearchSource[] = [
   source({ name: 'Ben’s Bites', kind: 'rss', url: 'https://www.bensbites.com/feed', priority: 'kol' }),
 ]
 
+const SUBSTACK_NEWSLETTER_SOURCES: ResearchSource[] = [
+  source({ name: 'AI Supremacy', kind: 'rss', url: 'https://www.ai-supremacy.com/feed', priority: 'important' }),
+  source({ name: 'The Rundown AI', kind: 'rss', url: 'https://www.therundown.ai/feed', priority: 'important' }),
+  source({ name: 'State of AI', kind: 'rss', url: 'https://nathanbenaich.substack.com/feed', priority: 'important' }),
+  source({ name: 'Every', kind: 'rss', url: 'https://every.to/feed', priority: 'important' }),
+  source({ name: 'Ahead of AI', kind: 'rss', url: 'https://magazine.sebastianraschka.com/feed', priority: 'blog' }),
+  source({ name: 'Mostly Harmless AI', kind: 'rss', url: 'https://newsletter.maartengrootendorst.com/feed', priority: 'blog' }),
+  source({ name: 'DAIR.AI', kind: 'rss', url: 'https://nlp.elvissaravia.com/feed', priority: 'blog' }),
+  source({ name: 'The Algorithmic Bridge', kind: 'rss', url: 'https://www.thealgorithmicbridge.com/feed', priority: 'kol' }),
+  source({ name: 'Aman Khan', kind: 'rss', url: 'https://amankhan1.substack.com/feed', priority: 'kol' }),
+  source({ name: 'Ruben AI', kind: 'rss', url: 'https://ruben.substack.com/feed', priority: 'kol' }),
+]
+
 const HN_ADAPTER_SOURCES: ResearchSource[] = [
   source({
     name: 'HN AI 本周',
@@ -107,7 +120,6 @@ const HN_ADAPTER_SOURCES: ResearchSource[] = [
 
 const URL_SOURCES: ResearchSource[] = [
   source({ name: 'Miantiao Drafts', kind: 'url', url: 'https://drafts.miantiao.me/', priority: 'important' }),
-  source({ name: 'Every Newsletter', kind: 'url', url: 'https://every.to/newsletter', priority: 'important' }),
   source({ name: 'HackerNoon AI', kind: 'url', url: 'https://hackernoon.com/c/ai', priority: 'important' }),
   source({ name: 'Poche Explore', kind: 'url', url: 'https://poche.app/explore', priority: 'important' }),
   source({ name: 'Engineering FYI', kind: 'url', url: 'https://engineering.fyi/tag/generative-ai', priority: 'important' }),
@@ -193,6 +205,7 @@ export function getResearchSources(week: WeekInfo, env?: Cloudflare.Env): Resear
     ...buildHnFrontSources(week),
     ...RSSHUB_SOURCES,
     ...NATIVE_RSS_SOURCES,
+    ...SUBSTACK_NEWSLETTER_SOURCES,
     ...URL_SOURCES,
   ]
 

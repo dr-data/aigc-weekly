@@ -17,6 +17,8 @@ describe('sources', () => {
     expect(sources.length).toBeGreaterThan(30)
     expect(sources.some(source => source.name.startsWith('HN Front'))).toBe(true)
     expect(sources.some(source => source.name === 'daily.dev AI')).toBe(true)
+    expect(sources.some(source => source.name === 'AI Supremacy')).toBe(true)
+    expect(sources.some(source => source.name === 'The Rundown AI')).toBe(true)
   })
 
   it('applies per-source max candidate defaults', () => {
