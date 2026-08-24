@@ -5,9 +5,15 @@ import type { ResearchFailure, SourceResearchResult, WeeklyDraft } from './weekl
 import { WorkflowEntrypoint } from 'cloudflare:workers'
 
 import { publishWeeklyIssue } from './github'
+import { notifyResearchProgress } from './notify'
 import { publishWeekly } from './payload'
 import { createCloudflareScraper } from './scraper'
-import { getResearchSources } from './sources'
+import {
+  chunkSources,
+  getResearchSources,
+  PRIORITY_ORDER,
+  RESEARCH_PARALLELISM,
+} from './sources'
 import { getWeekInfo, getWorkflowTargetDate } from './week'
 import {
   deduplicateArticles,
@@ -75,24 +81,51 @@ export class WeeklyWorkflow extends WorkflowEntrypoint<Cloudflare.Env, WeeklyWor
     )
     const week = getWeekInfo(targetDate)
     const artifactPrefix = `weekly-agent/${week.weekId}/${event.instanceId}`
-    const sources = getResearchSources(week)
+    const sources = getResearchSources(week, this.env)
     const researchResults: SourceResearchResult[] = []
+    let completedSources = 0
 
-    for (const [index, source] of sources.entries()) {
-      try {
-        const result = await step.do(
-          `研究来源 ${String(index + 1).padStart(2, '0')}`,
-          STEP_OPTIONS,
-          () => researchSource(this.env, source, week, artifactPrefix),
-        )
-        researchResults.push(result)
-      }
-      catch (error) {
-        researchResults.push({
-          articles: [],
-          failures: [unexpectedFailure(source.name, source.url, error)],
-          source: source.name,
-        })
+    for (const priority of PRIORITY_ORDER) {
+      const batch = sources.filter(source => source.priority === priority)
+      if (batch.length === 0)
+        continue
+
+      const chunks = chunkSources(batch, RESEARCH_PARALLELISM)
+      for (const [chunkIndex, chunk] of chunks.entries()) {
+        const stepLabel = `研究 ${priority} ${String(chunkIndex + 1).padStart(2, '0')}`
+
+        try {
+          const chunkResults = await step.do(
+            stepLabel,
+            STEP_OPTIONS,
+            async () => {
+              const results = await Promise.all(
+                chunk.map(source => researchSource(this.env, source, week, artifactPrefix)),
+              )
+
+              completedSources += chunk.length
+              await notifyResearchProgress(this.env, {
+                completed: completedSources,
+                priority,
+                total: sources.length,
+                week,
+              })
+
+              return results
+            },
+          )
+          researchResults.push(...chunkResults)
+        }
+        catch (error) {
+          for (const source of chunk) {
+            researchResults.push({
+              articles: [],
+              failures: [unexpectedFailure(source.name, source.url, error)],
+              source: source.name,
+            })
+          }
+          completedSources += chunk.length
+        }
       }
     }
 
@@ -175,6 +208,7 @@ export class WeeklyWorkflow extends WorkflowEntrypoint<Cloudflare.Env, WeeklyWor
       githubIssue,
       issueNumber: week.weekId,
       payload: published,
+      sourceCount: sources.length,
     }
   }
 

@@ -5,8 +5,9 @@ import type { WeekInfo } from './week'
 import { AI_MODEL } from './config'
 import { fetchHnFeedItems } from './hn'
 import { buildImageMarkdown, ensureArticleImages, fetchArticleImageUrl } from './images'
-import { fetchFeed, filterFeedItems, resolveFeedUrl } from './rss'
+import { fetchFeedForSource, filterFeedItems } from './rss'
 import { createCloudflareScraper, ScrapeError } from './scraper'
+import { chunkSources, getMaxCandidates } from './sources'
 
 export interface WeeklyArticle {
   category: 'news' | 'model' | 'tool'
@@ -71,10 +72,13 @@ interface ModelResponse {
 
 const MAX_SOURCE_CHARACTERS = 50_000
 const MAX_ARTICLE_CHARACTERS = 36_000
-const MAX_CANDIDATES_PER_SOURCE = 4
 const MAX_SELECTED_ARTICLES = 15
 const MAX_SELECTION_CANDIDATES = 30
 const MAX_HISTORICAL_RSS_CHARACTERS = 8_000
+const SCORE_PARALLELISM = 3
+const HN_FULL_SCRAPE_THRESHOLD = 85
+const PRESCORE_THRESHOLD = 65
+const MIN_SUMMARY_FOR_PRESCORE = 40
 
 function clip(content: string, maximum: number): string {
   if (content.length <= maximum)
@@ -210,12 +214,13 @@ async function findCandidates(
   source: ResearchSource,
   week: WeekInfo,
   content: string,
+  maxCandidates: number,
 ): Promise<Candidate[]> {
   const output = await runModel(
     env,
     '你是 AIGC 新聞研究員。全程使用繁體中文（台灣），只返回 JSON，不要輸出解釋或 Markdown 程式碼區塊。',
     `从以下页面中找出发布日期在 ${week.startDate} 至 ${week.endDate}（UTC）之间、与生成式 AI、LLM、AI Agent 或 AI 编程直接相关的文章。
-最多返回 ${MAX_CANDIDATES_PER_SOURCE} 篇。不要编造页面中不存在的 URL 或日期。无法确认日期时 date 使用空字符串。
+最多返回 ${maxCandidates} 篇。不要编造页面中不存在的 URL 或日期。无法确认日期时 date 使用空字符串。
 
 返回格式：
 {"articles":[{"title":"标题","url":"绝对或相对 URL","date":"YYYY-MM-DD","summary":"页面中可确认的一句话信息"}]}
@@ -231,7 +236,7 @@ ${clip(content, MAX_SOURCE_CHARACTERS)}`,
   return articles
     .map(candidate => resolveCandidate(candidate, source))
     .filter((candidate): candidate is Candidate => candidate !== null)
-    .slice(0, MAX_CANDIDATES_PER_SOURCE)
+    .slice(0, maxCandidates)
 }
 
 function normalizeScore(value: unknown, maximum: number): number {
@@ -239,6 +244,37 @@ function normalizeScore(value: unknown, maximum: number): number {
   if (!Number.isFinite(score))
     return 0
   return Math.max(0, Math.min(maximum, Math.round(score)))
+}
+
+async function prescoreArticle(
+  env: Cloudflare.Env,
+  source: ResearchSource,
+  candidate: Candidate,
+): Promise<number | null> {
+  const summary = candidate.summary?.trim() ?? ''
+  if (summary.length < MIN_SUMMARY_FOR_PRESCORE)
+    return null
+
+  const output = await runModel(
+    env,
+    '你是嚴格的 AIGC 週刊主編。全程使用繁體中文（台灣），只返回 JSON，不要輸出解釋或 Markdown 程式碼區塊。',
+    `根据标题与摘要快速预估总分（0-100）。营销软文或与 AIGC 无关内容应低于 70 分。
+返回格式：{"relevance":0,"impact":0,"utility":0}
+
+标题：${candidate.title}
+URL：${candidate.url}
+来源：${source.name}
+摘要：${summary}`,
+    512,
+  )
+
+  const parsedScore = parseModelJson<Partial<ScoredArticle>>(output)
+  if (!parsedScore || typeof parsedScore !== 'object')
+    return null
+
+  return normalizeScore(parsedScore.relevance, 40)
+    + normalizeScore(parsedScore.impact, 30)
+    + normalizeScore(parsedScore.utility, 30)
 }
 
 async function scoreArticle(
@@ -344,20 +380,22 @@ async function collectCandidates(
   env: Cloudflare.Env,
   source: ResearchSource,
   week: WeekInfo,
-): Promise<{ candidates: Candidate[], method: ResearchMethod, snapshot: string }> {
+): Promise<{ candidates: Candidate[], method: ResearchMethod, prefetchByUrl: Map<string, string>, snapshot: string }> {
+  const maxCandidates = getMaxCandidates(source)
+
   switch (source.kind) {
     case 'rss':
     case 'rsshub': {
-      const feedUrl = resolveFeedUrl(source.kind, source.url, env)
-      const feed = await fetchFeed(feedUrl)
+      const { feed } = await fetchFeedForSource(env, source, week)
       const candidates = filterFeedItems(feed.items, week, {
         aiKeywordsOnly: source.url.includes('/solidot/'),
       })
         .map(feedItemToCandidate)
-        .slice(0, MAX_CANDIDATES_PER_SOURCE)
+        .slice(0, maxCandidates)
       return {
         candidates,
         method: source.kind === 'rsshub' ? 'rsshub' : 'rss',
+        prefetchByUrl: new Map(),
         snapshot: feed.raw,
       }
     }
@@ -368,8 +406,9 @@ async function collectCandidates(
 
       const items = await fetchHnFeedItems(source.hnFeed, week)
       return {
-        candidates: items.map(feedItemToCandidate).slice(0, MAX_CANDIDATES_PER_SOURCE),
+        candidates: items.map(feedItemToCandidate).slice(0, maxCandidates),
         method: 'hn-api',
+        prefetchByUrl: new Map(),
         snapshot: JSON.stringify(items, null, 2),
       }
     }
@@ -377,13 +416,81 @@ async function collectCandidates(
     default: {
       const scraper = createCloudflareScraper(env)
       const landing = await scraper.scrape(source.url)
-      const candidates = await findCandidates(env, source, week, landing.content)
+      const candidates = await findCandidates(env, source, week, landing.content, maxCandidates)
+      const prefetchByUrl = new Map<string, string>()
+
+      await Promise.all(candidates.map(async (candidate) => {
+        if (candidate.url === source.url || prefetchByUrl.has(candidate.url))
+          return
+
+        try {
+          const scraped = await scraper.scrape(candidate.url)
+          prefetchByUrl.set(candidate.url, scraped.content)
+        }
+        catch {
+          // 浅层爬取失败时保留候选，后续评分阶段再尝试
+        }
+      }))
+
       return {
         candidates,
         method: landing.method,
+        prefetchByUrl,
         snapshot: landing.content,
       }
     }
+  }
+}
+
+async function scoreSingleCandidate(
+  env: Cloudflare.Env,
+  source: ResearchSource,
+  candidate: Candidate,
+  failures: ResearchFailure[],
+  contentByUrl: Map<string, string>,
+): Promise<WeeklyArticle | null> {
+  const scraper = createCloudflareScraper(env)
+
+  try {
+    const cached = contentByUrl.get(candidate.url)
+    let articleContent: string
+
+    if (cached) {
+      articleContent = cached
+    }
+    else if (isHnItemUrl(candidate.url)) {
+      articleContent = metadataContent(candidate)
+    }
+    else {
+      const prescore = await prescoreArticle(env, source, candidate)
+      if (prescore !== null && prescore < PRESCORE_THRESHOLD)
+        return null
+
+      articleContent = (await scraper.scrape(candidate.url)).content
+    }
+
+    let article = await scoreArticle(env, source, candidate, articleContent)
+
+    if (article && isHnItemUrl(candidate.url) && article.score >= HN_FULL_SCRAPE_THRESHOLD) {
+      try {
+        const fullContent = (await scraper.scrape(candidate.url)).content
+        const rescored = await scoreArticle(env, source, candidate, fullContent)
+        if (rescored)
+          article = rescored
+      }
+      catch {
+        // 保留基于元数据的评分结果
+      }
+    }
+
+    if (!article)
+      return null
+
+    return await attachArticleImage(article)
+  }
+  catch (error) {
+    failures.push(failureFrom(error, source, candidate.url))
+    return null
   }
 }
 
@@ -392,31 +499,15 @@ async function scoreCandidates(
   source: ResearchSource,
   candidates: Candidate[],
   failures: ResearchFailure[],
-  landingContentByUrl: Map<string, string>,
+  contentByUrl: Map<string, string>,
 ): Promise<WeeklyArticle[]> {
-  const scraper = createCloudflareScraper(env)
   const articles: WeeklyArticle[] = []
 
-  for (const candidate of candidates) {
-    try {
-      const cached = landingContentByUrl.get(candidate.url)
-      let articleContent: string
-      if (cached) {
-        articleContent = cached
-      }
-      else if (isHnItemUrl(candidate.url)) {
-        articleContent = metadataContent(candidate)
-      }
-      else {
-        articleContent = (await scraper.scrape(candidate.url)).content
-      }
-      const article = await scoreArticle(env, source, candidate, articleContent)
-      if (article)
-        articles.push(await attachArticleImage(article))
-    }
-    catch (error) {
-      failures.push(failureFrom(error, source, candidate.url))
-    }
+  for (const chunk of chunkSources(candidates, SCORE_PARALLELISM)) {
+    const scored = await Promise.all(
+      chunk.map(candidate => scoreSingleCandidate(env, source, candidate, failures, contentByUrl)),
+    )
+    articles.push(...scored.filter((article): article is WeeklyArticle => article !== null))
   }
 
   return articles
@@ -430,42 +521,46 @@ export async function researchSource(
 ): Promise<SourceResearchResult> {
   const failures: ResearchFailure[] = []
 
-  let method: ResearchMethod
-  let snapshot: string
-  let candidates: Candidate[]
-
   try {
     const collected = await collectCandidates(env, source, week)
-    method = collected.method
-    snapshot = collected.snapshot
-    candidates = collected.candidates
+    const contentByUrl = new Map<string, string>()
+    if (source.kind === 'url')
+      contentByUrl.set(source.url, collected.snapshot)
+    for (const [url, content] of collected.prefetchByUrl.entries())
+      contentByUrl.set(url, content)
+
+    await env.AGENT_STORAGE.put(
+      `${artifactPrefix}/sources/${encodeURIComponent(source.name)}.md`,
+      clip(collected.snapshot, MAX_SOURCE_CHARACTERS),
+      {
+        customMetadata: {
+          kind: source.kind,
+          method: collected.method,
+          source: source.name,
+          url: source.url,
+        },
+        httpMetadata: { contentType: 'text/markdown; charset=utf-8' },
+      },
+    )
+
+    const articles = await scoreCandidates(
+      env,
+      source,
+      collected.candidates,
+      failures,
+      contentByUrl,
+    )
+
+    return {
+      articles,
+      failures,
+      method: collected.method,
+      source: source.name,
+    }
   }
   catch (error) {
     failures.push(failureFrom(error, source, source.url))
     return { articles: [], failures, source: source.name }
-  }
-
-  await env.AGENT_STORAGE.put(`${artifactPrefix}/sources/${encodeURIComponent(source.name)}.md`, clip(snapshot, MAX_SOURCE_CHARACTERS), {
-    customMetadata: {
-      kind: source.kind,
-      method,
-      source: source.name,
-      url: source.url,
-    },
-    httpMetadata: { contentType: 'text/markdown; charset=utf-8' },
-  })
-
-  const landingContentByUrl = new Map<string, string>()
-  if (source.kind === 'url')
-    landingContentByUrl.set(source.url, snapshot)
-
-  const articles = await scoreCandidates(env, source, candidates, failures, landingContentByUrl)
-
-  return {
-    articles,
-    failures,
-    method,
-    source: source.name,
   }
 }
 
@@ -585,17 +680,65 @@ ${clip(historicalRss, MAX_HISTORICAL_RSS_CHARACTERS)}`,
   return selectArticlesByScore(pool)
 }
 
+const CATEGORY_HEADINGS: Record<WeeklyArticle['category'], string> = {
+  news: '資訊',
+  model: '模型',
+  tool: '工具',
+}
+
+export function buildWeeklyDraftFallback(week: WeekInfo, articles: WeeklyArticle[]): WeeklyDraft {
+  const grouped: Record<WeeklyArticle['category'], WeeklyArticle[]> = {
+    news: [],
+    model: [],
+    tool: [],
+  }
+
+  for (const article of articles)
+    grouped[article.category].push(article)
+
+  const sections = (['news', 'model', 'tool'] as const)
+    .filter(category => grouped[category].length > 0)
+    .map((category) => {
+      const lines = grouped[category].map((article) => {
+        const image = article.imageMarkdown ? `\n\n${article.imageMarkdown}` : ''
+        return `**[${article.title}](${article.url})**（${article.source}）\n\n${article.summary}${image}`
+      })
+      return `## ${CATEGORY_HEADINGS[category]}\n\n${lines.join('\n\n')}`
+    })
+
+  const tags = [...new Set(articles.flatMap(article => [article.category, article.source]))]
+    .slice(0, 8)
+
+  return {
+    content: [
+      `# DrData 的 AIGC 週刊（${week.weekId}）`,
+      '',
+      `本期自動 fallback 草稿，範圍 ${week.startDate} 至 ${week.endDate}。`,
+      '',
+      ...sections,
+      '',
+      '## 結束語',
+      '',
+      '以上內容由候選素材自動整理，請人工審核後發布。',
+    ].join('\n'),
+    summary: articles[0]?.summary.slice(0, 200) ?? `DrData 的 AIGC 週刊（${week.weekId}）`,
+    tags,
+    title: `DrData 的 AIGC 週刊（${week.weekId}）`,
+  }
+}
+
 export async function writeWeekly(
   env: Cloudflare.Env,
   week: WeekInfo,
   articles: WeeklyArticle[],
 ): Promise<WeeklyDraft> {
-  const output = await runModel(
-    env,
-    `你是面向科技愛好者和開發者的繁體中文（台灣）科技專欄作家。
+  try {
+    const output = await runModel(
+      env,
+      `你是面向科技愛好者和開發者的繁體中文（台灣）科技專欄作家。
 寫作應簡單、人性化、清晰、專業客觀，不堆砌形容詞。所有事實必須來自輸入素材。
 原文連結必須用貼近標題或核心名詞的錨點文字自然嵌入段落，禁止單列「原文連結」或「閱讀更多」。`,
-    `撰寫「DrData 的 AIGC 週刊（${week.weekId}）」。
+      `撰寫「DrData 的 AIGC 週刊（${week.weekId}）」。
 正文使用 Markdown，包含简短开场白、资讯、模型、工具和结束语。没有素材的分类可以省略。
 每条素材写成连贯段落，不要在标题后附发布日期。
 若素材 JSON 中包含 imageMarkdown 字段，请在该条段落结束后单独一行插入 imageMarkdown，不要修改其中的 URL。
@@ -615,13 +758,24 @@ ${JSON.stringify(articles.map(article => ({
   title: article.title,
   url: article.url,
 })))}`,
-    8_192,
-  )
+      8_192,
+    )
 
-  const draft = parseWeeklyDraft(output)
-  return {
-    ...draft,
-    content: ensureArticleImages(draft.content, articles),
+    try {
+      const draft = parseWeeklyDraft(output)
+      return {
+        ...draft,
+        content: ensureArticleImages(draft.content, articles),
+      }
+    }
+    catch (error) {
+      console.warn('周刊模型输出无法解析，使用 fallback 草稿', error)
+      return buildWeeklyDraftFallback(week, articles)
+    }
+  }
+  catch (error) {
+    console.warn('周刊撰写模型失败，使用 fallback 草稿', error)
+    return buildWeeklyDraftFallback(week, articles)
   }
 }
 

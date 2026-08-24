@@ -77,11 +77,12 @@ describe('publishWeeklyIssue', () => {
     const createCall = fetchMock.mock.calls[1]
     expect(createCall?.[0]).toBe('https://api.github.com/repos/dr-data/aigc-weekly/issues')
     expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({
+      labels: ['weekly-draft', 'Y25W33'],
       title: '[周刊草稿] Y25W33 · 测试周刊标题',
     })
   })
 
-  it('更新已存在的 GitHub Issue', async () => {
+  it('updates an existing GitHub Issue', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       if (url.includes('/search/issues') && init?.method === undefined) {
@@ -112,7 +113,34 @@ describe('publishWeeklyIssue', () => {
       operation: 'updated',
       url: 'https://github.com/dr-data/aigc-weekly/issues/12',
     })
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/search/issues')
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toMatchObject({
+      labels: ['weekly-draft', 'Y25W33'],
+    })
+  })
+
+  it('creates issue without labels when label permission is missing', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/search/issues'))
+        return Response.json({ items: [] })
+      if (url.endsWith('/issues') && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body))
+        if (body.labels) {
+          return new Response(JSON.stringify({
+            message: 'You do not have permission to create labels on this repository.',
+          }), { status: 403 })
+        }
+        return Response.json({
+          html_url: 'https://github.com/dr-data/aigc-weekly/issues/13',
+          number: 13,
+        })
+      }
+      return new Response('not found', { status: 404 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await publishWeeklyIssue(createEnv(), week, draft, payload)
+    expect(result.number).toBe(13)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })

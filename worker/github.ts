@@ -120,6 +120,92 @@ async function findExistingIssue(
   return result.items?.[0]
 }
 
+function issueLabels(weekId: string): string[] {
+  return ['weekly-draft', weekId]
+}
+
+async function createIssue(
+  headers: Headers,
+  owner: string,
+  repo: string,
+  title: string,
+  body: string,
+  weekId: string,
+): Promise<GitHubIssue> {
+  try {
+    return await githubRequest<GitHubIssue>(
+      `https://api.github.com/repos/${owner}/${repo}/issues`,
+      {
+        body: JSON.stringify({
+          body,
+          labels: issueLabels(weekId),
+          title,
+        }),
+        headers,
+        method: 'POST',
+      },
+    )
+  }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (!message.includes('label'))
+      throw error
+
+    return await githubRequest<GitHubIssue>(
+      `https://api.github.com/repos/${owner}/${repo}/issues`,
+      {
+        body: JSON.stringify({ body, title }),
+        headers,
+        method: 'POST',
+      },
+    )
+  }
+}
+
+async function updateIssue(
+  headers: Headers,
+  owner: string,
+  repo: string,
+  issueNumber: number,
+  title: string,
+  body: string,
+  weekId: string,
+): Promise<GitHubIssue> {
+  try {
+    return await githubRequest<GitHubIssue>(
+      `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`,
+      {
+        body: JSON.stringify({
+          body,
+          labels: issueLabels(weekId),
+          state: 'open',
+          title,
+        }),
+        headers,
+        method: 'PATCH',
+      },
+    )
+  }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (!message.includes('label'))
+      throw error
+
+    return await githubRequest<GitHubIssue>(
+      `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`,
+      {
+        body: JSON.stringify({
+          body,
+          state: 'open',
+          title,
+        }),
+        headers,
+        method: 'PATCH',
+      },
+    )
+  }
+}
+
 export async function publishWeeklyIssue(
   env: Cloudflare.Env,
   week: WeekInfo,
@@ -138,18 +224,7 @@ export async function publishWeeklyIssue(
   const existing = await findExistingIssue(env.GITHUB_TOKEN, owner, repo, week.weekId)
 
   if (existing) {
-    const updated = await githubRequest<GitHubIssue>(
-      `https://api.github.com/repos/${owner}/${repo}/issues/${existing.number}`,
-      {
-        body: JSON.stringify({
-          body,
-          state: 'open',
-          title,
-        }),
-        headers,
-        method: 'PATCH',
-      },
-    )
+    const updated = await updateIssue(headers, owner, repo, existing.number, title, body, week.weekId)
     return {
       number: updated.number,
       operation: 'updated',
@@ -157,17 +232,7 @@ export async function publishWeeklyIssue(
     }
   }
 
-  const created = await githubRequest<GitHubIssue>(
-    `https://api.github.com/repos/${owner}/${repo}/issues`,
-    {
-      body: JSON.stringify({
-        body,
-        title,
-      }),
-      headers,
-      method: 'POST',
-    },
-  )
+  const created = await createIssue(headers, owner, repo, title, body, week.weekId)
   return {
     number: created.number,
     operation: 'created',

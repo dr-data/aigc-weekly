@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { deduplicateArticles, isHnItemUrl, parseModelJson, parseWeeklyDraft, selectArticlesByScore } from './weekly'
+import { getWeekInfo } from './week'
+import { buildWeeklyDraftFallback, deduplicateArticles, isHnItemUrl, parseModelJson, parseWeeklyDraft, selectArticlesByScore } from './weekly'
 
 describe('isHnItemUrl', () => {
   it('detects Hacker News item pages', () => {
@@ -87,6 +88,26 @@ describe('parseModelJson', () => {
 
   it('rejects non-JSON model output', () => {
     expect(() => parseModelJson('无法解析')).toThrow('模型未返回有效 JSON')
+  })
+})
+
+describe('buildWeeklyDraftFallback', () => {
+  it('builds a markdown draft from selected articles', () => {
+    const week = getWeekInfo('2025-08-20')
+    const draft = buildWeeklyDraftFallback(week, [{
+      category: 'news',
+      date: '2025-08-20',
+      reason: '重要',
+      score: 88,
+      source: 'Example',
+      summary: '摘要内容',
+      title: '示例新闻',
+      url: 'https://example.com/news',
+    }])
+
+    expect(draft.title).toContain('Y25W33')
+    expect(draft.content).toContain('示例新闻')
+    expect(draft.content).toContain('https://example.com/news')
   })
 })
 

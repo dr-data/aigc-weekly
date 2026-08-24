@@ -9,7 +9,7 @@
 ```text
 Workflow Schedule / POST /runs
   → Cloudflare Workflow
-    → 来源研究（逐来源耐久步骤）
+    → 来源研究（按优先级分批、每批 5 路并行）
       → 静态 fetch + Markdown for Agents
       → Readability + Turndown
       → Browser Run
@@ -26,7 +26,7 @@ Workflow Schedule / POST /runs
 
 - **Workflow 替代常驻 Agent**：每个来源和生产阶段都成为耐久步骤，平台负责状态持久化、超时和重试。
 - **计划任务生成完整周期**：周日计划触发时以触发时间的前一天为目标日期，生成刚结束的周日至周六，而不是抓取尚未发生的一周。
-- **不使用 Queue**：当前来源规模适合 Workflow 顺序执行，可自然遵守网站限流并控制 Browser Run 并发。来源规模显著增加时再引入 Queue 扇出。
+- **分批并行研究**：按 `important` → `blog` → `kol` 分批，每批 5 路并行，兼顾速度与 Browser Run 限额。
 - **不使用 D1 保存 Agent 状态**：Workflow 已持久化执行状态；R2 保存可审计产物；Payload 的 `issueNumber` 唯一字段保证发布幂等。
 - **Browser Run 不是第一选择**：优先使用低成本静态获取，仅在正文不可用时启动浏览器。
 - **Jina Reader 是可选的最终外部回退**：它使用不同抓取基础设施，但不是 Cloudflare 服务。未配置 `JINA_API_KEY` 时完全跳过，不调用公共接口。
@@ -53,7 +53,19 @@ Browser Run 和 Jina Reader 都不能保证绕过验证码、登录墙或网站�
 - `SERVER_PASSWORD`
 - `PAYLOAD_BASE_URL`
 - `PAYLOAD_API_KEY`
+- `GITHUB_TOKEN`
 - `JINA_API_KEY`（可选）
+- `RSSHUB_BASE_URL`（可选）
+- `DISABLED_SOURCES`（可选，逗号分隔来源名称）
+- `PROGRESS_WEBHOOK_URL`（可选，研究进度 Webhook）
+
+## 研究优化
+
+- 来源按 `important` → `blog` → `kol` 分批，每批 5 路并行研究。
+- Feed/RSSHub 结果按周缓存到 R2（6 小时 TTL）。
+- URL 来源支持 1 层浅爬；Feed/HN 来源提高候选上限。
+- 评分阶段支持摘要预筛、3 路并行评分；高分 HN item 补抓原文。
+- 模型撰写失败时自动生成 fallback 草稿。
 
 ## 运维接口
 

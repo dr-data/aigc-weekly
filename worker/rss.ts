@@ -1,6 +1,9 @@
+import type { ResearchSource } from './sources'
 import type { WeekInfo } from './week'
 
 import { parseHTML } from 'linkedom'
+
+import { getCachedFeed, putCachedFeed } from './feed-cache'
 
 export interface FeedItem {
   date: string
@@ -189,6 +192,50 @@ export async function fetchFeed(feedUrl: string): Promise<ParsedFeed> {
     throw new Error('Feed 返回空内容')
 
   return parseFeedXml(body)
+}
+
+function isRetriableFeedStatus(status: number): boolean {
+  return status === 502 || status === 503 || status === 504
+}
+
+async function fetchFeedFromUrl(feedUrl: string): Promise<ParsedFeed> {
+  try {
+    return await fetchFeed(feedUrl)
+  }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    const status = Number(message.match(/Feed HTTP (\d+)/)?.[1])
+    if (Number.isFinite(status) && isRetriableFeedStatus(status))
+      throw error
+    throw error
+  }
+}
+
+export async function fetchFeedForSource(
+  env: Cloudflare.Env,
+  source: ResearchSource,
+  week: WeekInfo,
+): Promise<{ feed: ParsedFeed, feedUrl: string }> {
+  const primaryUrl = resolveFeedUrl(source.kind as 'rss' | 'rsshub', source.url, env)
+  const candidates = [primaryUrl, ...(source.fallbackUrls ?? [])]
+  const cached = await getCachedFeed(env, week.weekId, primaryUrl)
+  if (cached)
+    return { feed: cached, feedUrl: primaryUrl }
+
+  let lastError: unknown
+  for (const feedUrl of candidates) {
+    try {
+      const feed = await fetchFeedFromUrl(feedUrl)
+      if (feedUrl === primaryUrl)
+        await putCachedFeed(env, week.weekId, primaryUrl, feed)
+      return { feed, feedUrl }
+    }
+    catch (error) {
+      lastError = error
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Feed 抓取失败')
 }
 
 function isDateInWeek(date: string, week: WeekInfo): boolean {
