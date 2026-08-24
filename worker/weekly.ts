@@ -4,12 +4,15 @@ import type { WeekInfo } from './week'
 
 import { AI_MODEL } from './config'
 import { fetchHnFeedItems } from './hn'
+import { buildImageMarkdown, ensureArticleImages, fetchArticleImageUrl } from './images'
 import { fetchFeed, filterFeedItems, resolveFeedUrl } from './rss'
 import { createCloudflareScraper, ScrapeError } from './scraper'
 
 export interface WeeklyArticle {
   category: 'news' | 'model' | 'tool'
   date: string
+  imageMarkdown?: string
+  imageUrl?: string
   reason: string
   score: number
   source: string
@@ -322,6 +325,21 @@ function metadataContent(candidate: Candidate): string {
   return parts.join('\n\n') || candidate.title
 }
 
+async function attachArticleImage(article: WeeklyArticle): Promise<WeeklyArticle> {
+  if (isHnItemUrl(article.url) || article.imageMarkdown)
+    return article
+
+  const imageUrl = await fetchArticleImageUrl(article.url)
+  if (!imageUrl)
+    return article
+
+  return {
+    ...article,
+    imageMarkdown: buildImageMarkdown(article.title, imageUrl),
+    imageUrl,
+  }
+}
+
 async function collectCandidates(
   env: Cloudflare.Env,
   source: ResearchSource,
@@ -394,7 +412,7 @@ async function scoreCandidates(
       }
       const article = await scoreArticle(env, source, candidate, articleContent)
       if (article)
-        articles.push(article)
+        articles.push(await attachArticleImage(article))
     }
     catch (error) {
       failures.push(failureFrom(error, source, candidate.url))
@@ -580,17 +598,31 @@ export async function writeWeekly(
     `撰寫「DrData 的 AIGC 週刊（${week.weekId}）」。
 正文使用 Markdown，包含简短开场白、资讯、模型、工具和结束语。没有素材的分类可以省略。
 每条素材写成连贯段落，不要在标题后附发布日期。
+若素材 JSON 中包含 imageMarkdown 字段，请在该条段落结束后单独一行插入 imageMarkdown，不要修改其中的 URL。
 
 返回严格 JSON：
 {"title":"标题","summary":"不超过 200 字摘要","content":"Markdown 正文","tags":["标签"]}
 
 本期范围：${week.startDate} 至 ${week.endDate}
 素材：
-${JSON.stringify(articles)}`,
+${JSON.stringify(articles.map(article => ({
+  category: article.category,
+  date: article.date,
+  imageMarkdown: article.imageMarkdown,
+  score: article.score,
+  source: article.source,
+  summary: article.summary,
+  title: article.title,
+  url: article.url,
+})))}`,
     8_192,
   )
 
-  return parseWeeklyDraft(output)
+  const draft = parseWeeklyDraft(output)
+  return {
+    ...draft,
+    content: ensureArticleImages(draft.content, articles),
+  }
 }
 
 export async function reviewWeekly(
