@@ -2,7 +2,7 @@ import type { PublishedWeekly } from './payload'
 import type { WeekInfo } from './week'
 import type { WeeklyDraft } from './weekly'
 
-const DEFAULT_REPOSITORY = 'dr-data/aigc-weekly'
+const REPOSITORY = 'dr-data/aigc-weekly'
 const WEEKLY_DRAFT_LABEL = 'weekly-draft'
 
 export interface PublishedGitHubIssue {
@@ -16,11 +16,8 @@ interface GitHubIssue {
   number: number
 }
 
-function parseRepository(repository: string): { owner: string, repo: string } {
-  const [owner, repo] = repository.split('/')
-  if (!owner || !repo)
-    throw new Error(`GITHUB_REPOSITORY 格式无效：${repository}`)
-
+function parseRepository(): { owner: string, repo: string } {
+  const [owner, repo] = REPOSITORY.split('/')
   return { owner, repo }
 }
 
@@ -44,8 +41,12 @@ async function githubRequest<T>(
   })
   const body = await response.text()
 
-  if (!response.ok)
+  if (!response.ok) {
+    if (response.status === 410 && body.includes('Issues has been disabled'))
+      throw new Error('GitHub Issues 未在 dr-data/aigc-weekly 启用，请先在仓库 Settings → Features 中开启 Issues')
+
     throw new Error(`GitHub API ${response.status}：${body.slice(0, 1_000)}`)
+  }
 
   try {
     return JSON.parse(body) as T
@@ -109,16 +110,15 @@ async function findExistingIssue(
   weekId: string,
 ): Promise<GitHubIssue | undefined> {
   const query = new URLSearchParams({
-    labels: `${WEEKLY_DRAFT_LABEL},${weekId}`,
     per_page: '1',
-    state: 'all',
+    q: `repo:${owner}/${repo} is:issue in:title [周刊草稿] ${weekId}`,
   })
-  const issues = await githubRequest<GitHubIssue[]>(
-    `https://api.github.com/repos/${owner}/${repo}/issues?${query}`,
+  const result = await githubRequest<{ items?: GitHubIssue[] }>(
+    `https://api.github.com/search/issues?${query}`,
     { headers: githubHeaders(token) },
   )
 
-  return issues[0]
+  return result.items?.[0]
 }
 
 export async function publishWeeklyIssue(
@@ -132,12 +132,10 @@ export async function publishWeeklyIssue(
   if (!env.PAYLOAD_BASE_URL)
     throw new Error('缺少 PAYLOAD_BASE_URL')
 
-  const repository = env.GITHUB_REPOSITORY ?? DEFAULT_REPOSITORY
-  const { owner, repo } = parseRepository(repository)
+  const { owner, repo } = parseRepository()
   const headers = githubHeaders(env.GITHUB_TOKEN)
   const title = buildIssueTitle(week, draft)
   const body = buildIssueBody(env, week, draft, payload)
-  const labels = [WEEKLY_DRAFT_LABEL, week.weekId]
   const existing = await findExistingIssue(env.GITHUB_TOKEN, owner, repo, week.weekId)
 
   if (existing) {
@@ -146,7 +144,6 @@ export async function publishWeeklyIssue(
       {
         body: JSON.stringify({
           body,
-          labels,
           state: 'open',
           title,
         }),
@@ -166,7 +163,7 @@ export async function publishWeeklyIssue(
     {
       body: JSON.stringify({
         body,
-        labels,
+        labels: [WEEKLY_DRAFT_LABEL, week.weekId],
         title,
       }),
       headers,

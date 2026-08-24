@@ -27,7 +27,6 @@ const payload = {
 
 function createEnv(): Cloudflare.Env {
   return {
-    GITHUB_REPOSITORY: 'dr-data/aigc-weekly',
     GITHUB_TOKEN: 'ghp_test_token',
     PAYLOAD_BASE_URL: 'https://ai.shor.lol',
   } as Cloudflare.Env
@@ -54,8 +53,8 @@ describe('publishWeeklyIssue', () => {
   it('创建新的 GitHub Issue', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
-      if (url.includes('/issues?') && init?.method === undefined) {
-        return Response.json([])
+      if (url.includes('/search/issues') && init?.method === undefined) {
+        return Response.json({ items: [] })
       }
       if (url.endsWith('/issues') && init?.method === 'POST') {
         return Response.json({
@@ -86,11 +85,13 @@ describe('publishWeeklyIssue', () => {
   it('更新已存在的 GitHub Issue', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
-      if (url.includes('/issues?') && init?.method === undefined) {
-        return Response.json([{
-          html_url: 'https://github.com/dr-data/aigc-weekly/issues/12',
-          number: 12,
-        }])
+      if (url.includes('/search/issues') && init?.method === undefined) {
+        return Response.json({
+          items: [{
+            html_url: 'https://github.com/dr-data/aigc-weekly/issues/12',
+            number: 12,
+          }],
+        })
       }
       if (url.endsWith('/issues/12') && init?.method === 'PATCH') {
         return Response.json({
@@ -113,6 +114,6 @@ describe('publishWeeklyIssue', () => {
       url: 'https://github.com/dr-data/aigc-weekly/issues/12',
     })
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('labels=weekly-draft%2CY25W33')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/search/issues')
   })
 })

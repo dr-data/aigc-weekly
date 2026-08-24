@@ -106,8 +106,7 @@ async function checkJinaReader(env: Cloudflare.Env): Promise<void> {
 }
 
 async function checkGitHub(env: Cloudflare.Env): Promise<void> {
-  const repository = env.GITHUB_REPOSITORY ?? 'dr-data/aigc-weekly'
-  const response = await fetch(`https://api.github.com/repos/${repository}`, {
+  const response = await fetch('https://api.github.com/repos/dr-data/aigc-weekly', {
     headers: {
       'Accept': 'application/vnd.github+json',
       'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
