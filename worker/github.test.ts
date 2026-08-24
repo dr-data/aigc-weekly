@@ -77,7 +77,6 @@ describe('publishWeeklyIssue', () => {
     const createCall = fetchMock.mock.calls[1]
     expect(createCall?.[0]).toBe('https://api.github.com/repos/dr-data/aigc-weekly/issues')
     expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({
-      labels: ['weekly-draft', 'Y25W33'],
       title: '[周刊草稿] Y25W33 · 测试周刊标题',
     })
   })

@@ -3,7 +3,6 @@ import type { WeekInfo } from './week'
 import type { WeeklyDraft } from './weekly'
 
 const REPOSITORY = 'dr-data/aigc-weekly'
-const WEEKLY_DRAFT_LABEL = 'weekly-draft'
 
 export interface PublishedGitHubIssue {
   number: number
@@ -163,7 +162,6 @@ export async function publishWeeklyIssue(
     {
       body: JSON.stringify({
         body,
-        labels: [WEEKLY_DRAFT_LABEL, week.weekId],
         title,
       }),
       headers,
