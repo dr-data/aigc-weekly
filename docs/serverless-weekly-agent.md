@@ -7,7 +7,7 @@
 ## 架构
 
 ```text
-Workflow Schedule / POST /runs
+Worker Cron (周日 23:00 UTC) / POST /runs
   → Cloudflare Workflow
     → 来源研究（按优先级分批、每批 5 路并行）
       → 静态 fetch + Markdown for Agents
@@ -25,7 +25,7 @@ Workflow Schedule / POST /runs
 ## 设计决定
 
 - **Workflow 替代常驻 Agent**：每个来源和生产阶段都成为耐久步骤，平台负责状态持久化、超时和重试。
-- **计划任务生成完整周期**：周日计划触发时以触发时间的前一天为目标日期，生成刚结束的周日至周六，而不是抓取尚未发生的一周。
+- **计划任务生成完整周期**：周日 Cron 触发时以触发时间的前一天为目标日期，生成刚结束的周日至周六，而不是抓取尚未发生的一周。使用 Worker `scheduled` handler 创建普通 Workflow 实例，避免 Workflow `schedules` 的 1 小时执行窗口。
 - **分批并行研究**：按 `important` → `blog` → `kol` 分批，每批 5 路并行，兼顾速度与 Browser Run 限额。
 - **不使用 D1 保存 Agent 状态**：Workflow 已持久化执行状态；R2 保存可审计产物；Payload 的 `issueNumber` 唯一字段保证发布幂等。
 - **Browser Run 不是第一选择**：优先使用低成本静态获取，仅在正文不可用时启动浏览器。
@@ -40,12 +40,12 @@ Browser Run 和 Jina Reader 都不能保证绕过验证码、登录墙或网站�
 
 ## Cloudflare bindings
 
-| Binding           | 用途                             |
-| ----------------- | -------------------------------- |
-| `WEEKLY_WORKFLOW` | 周刊耐久任务和每周计划           |
-| `AI`              | 候选提取、评分、筛选、写作和审核 |
-| `BROWSER`         | 动态网页转 Markdown              |
-| `AGENT_STORAGE`   | 原始来源、失败记录和最终产物     |
+| Binding           | 用途                                |
+| ----------------- | ----------------------------------- |
+| `WEEKLY_WORKFLOW` | 周刊耐久任务（由 Cron / HTTP 创建） |
+| `AI`              | 候选提取、评分、筛选、写作和审核    |
+| `BROWSER`         | 动态网页转 Markdown                 |
+| `AGENT_STORAGE`   | 原始来源、失败记录和最终产物        |
 
 ## Secrets
 

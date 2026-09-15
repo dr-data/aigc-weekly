@@ -195,7 +195,7 @@ curl -u "$SERVER_USERNAME:$SERVER_PASSWORD" \
   http://localhost:2442/runs/<instance-id>
 ```
 
-生产环境按 `worker/wrangler.jsonc` 中的 cron（每周日 23:00 UTC）自动触发。
+生产环境通过 Worker Cron Trigger（每周日 23:00 UTC，`0 23 * * SUN`）调用 `scheduled` handler，创建完整时长的 Workflow 实例。Cloudflare 的数字星期与 Unix cron 不同：`7` 表示周六而不是周日。
 
 ### 运维接口
 
