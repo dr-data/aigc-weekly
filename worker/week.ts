@@ -23,8 +23,8 @@ export function getWorkflowTargetDate(
 
   const triggerTime = scheduledTime === undefined
     ? eventTimestamp
-    : new Date(scheduledTime - 86_400_000)
-  return formatDate(triggerTime)
+    : new Date(scheduledTime)
+  return formatDate(new Date(triggerTime.getTime() - 86_400_000))
 }
 
 function parseDate(targetDate?: string): Date {

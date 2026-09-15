@@ -1,4 +1,5 @@
 import { runDiagnostics } from './diagnostics'
+import { startScheduledWeekly } from './schedule'
 import { getWeekInfo } from './week'
 
 export { WeeklyWorkflow } from './workflow'
@@ -105,6 +106,15 @@ async function handleFetch(request: Request, env: Cloudflare.Env): Promise<Respo
   return Response.json({ error: 'Not Found' }, { status: 404 })
 }
 
+async function handleScheduled(
+  controller: ScheduledController,
+  env: Cloudflare.Env,
+): Promise<void> {
+  const result = await startScheduledWeekly(env, controller.scheduledTime)
+  console.info('已启动周刊 Workflow', result)
+}
+
 export default {
   fetch: handleFetch,
+  scheduled: handleScheduled,
 } satisfies ExportedHandler<Cloudflare.Env>

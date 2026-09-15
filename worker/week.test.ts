@@ -40,4 +40,25 @@ describe('getWorkflowTargetDate', () => {
       Date.parse('2026-08-23T23:00:00Z'),
     )).toBe('2026-08-22')
   })
+
+  it('still targets the completed week when schedule metadata is missing', () => {
+    expect(getWorkflowTargetDate(
+      undefined,
+      new Date('2026-08-23T23:00:00Z'),
+    )).toBe('2026-08-22')
+  })
+
+  it('maps Sunday 23:00 UTC to the week that just ended', () => {
+    const targetDate = getWorkflowTargetDate(
+      undefined,
+      new Date('2026-08-23T23:00:00Z'),
+      Date.parse('2026-08-23T23:00:00Z'),
+    )
+
+    expect(getWeekInfo(targetDate)).toMatchObject({
+      weekId: 'Y26W33',
+      startDate: '2026-08-16',
+      endDate: '2026-08-22',
+    })
+  })
 })

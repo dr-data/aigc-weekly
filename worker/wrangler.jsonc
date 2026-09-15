@@ -30,12 +30,15 @@
       "bucket_name": "aigc-weekly"
     }
   ],
+  // Cloudflare weekdays: 1=Sunday … 7=Saturday. Use SUN, not 7.
+  "triggers": {
+    "crons": ["0 23 * * SUN"]
+  },
   "workflows": [
     {
       "name": "aigc-weekly-workflow",
       "binding": "WEEKLY_WORKFLOW",
-      "class_name": "WeeklyWorkflow",
-      "schedules": ["0 23 * * 7"]
+      "class_name": "WeeklyWorkflow"
     }
   ]
 }
