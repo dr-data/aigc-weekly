@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { buildIssueBody, publishWeeklyIssue } from './github'
+import { buildIssueBody, publishWeeklyIssue, publishWeeklyIssueSafely } from './github'
 
 const week = {
   weekId: 'Y25W33',
@@ -142,5 +142,20 @@ describe('publishWeeklyIssue', () => {
     const result = await publishWeeklyIssue(createEnv(), week, draft, payload)
     expect(result.number).toBe(13)
     expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('skips GitHub publish when credentials are invalid', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      message: 'Bad credentials',
+      status: '401',
+    }), { status: 401 })))
+
+    const result = await publishWeeklyIssueSafely(createEnv(), week, draft, payload)
+
+    expect(result).toEqual({
+      number: 0,
+      operation: 'created',
+      url: '',
+    })
   })
 })

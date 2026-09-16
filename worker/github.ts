@@ -239,3 +239,22 @@ export async function publishWeeklyIssue(
     url: created.html_url,
   }
 }
+
+export async function publishWeeklyIssueSafely(
+  env: Cloudflare.Env,
+  week: WeekInfo,
+  draft: WeeklyDraft,
+  payload: PublishedWeekly,
+): Promise<PublishedGitHubIssue> {
+  try {
+    return await publishWeeklyIssue(env, week, draft, payload)
+  }
+  catch (error) {
+    console.error('GitHub Issue 发布失败，周刊草稿已写入 Payload', error)
+    return {
+      number: 0,
+      operation: 'created',
+      url: '',
+    }
+  }
+}

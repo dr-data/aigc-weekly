@@ -4,7 +4,7 @@ import type { ResearchFailure, SourceResearchResult, WeeklyDraft } from './weekl
 
 import { WorkflowEntrypoint } from 'cloudflare:workers'
 
-import { publishWeeklyIssue } from './github'
+import { publishWeeklyIssueSafely } from './github'
 import { notifyResearchProgress } from './notify'
 import { publishWeekly } from './payload'
 import { createCloudflareScraper } from './scraper'
@@ -193,7 +193,7 @@ export class WeeklyWorkflow extends WorkflowEntrypoint<Cloudflare.Env, WeeklyWor
     const githubIssue = await step.do(
       '发布 GitHub Issue',
       STEP_OPTIONS,
-      () => publishWeeklyIssue(this.env, week, draft, published),
+      () => publishWeeklyIssueSafely(this.env, week, draft, published),
     )
 
     await step.do(
