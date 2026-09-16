@@ -58,6 +58,20 @@ describe('parseFeedXml', () => {
     const feed = parseFeedXml(`<?xml version="1.0"?><rss><channel><title>HN</title><item><title>Story</title><link>49407576</link></item></channel></rss>`)
     expect(feed.items[0]?.url).toBe('https://news.ycombinator.com/item?id=49407576')
   })
+
+  it('strips CDATA wrappers from RSS titles and summaries', () => {
+    const feed = parseFeedXml(`<?xml version="1.0"?><rss><channel><title>Feed</title><item><title><![CDATA[A Guide to Which AI]]></title><link>https://example.com/guide</link><description><![CDATA[摘要内容]]></description></item></channel></rss>`)
+    expect(feed.items[0]).toMatchObject({
+      summary: '摘要内容',
+      title: 'A Guide to Which AI',
+      url: 'https://example.com/guide',
+    })
+  })
+
+  it('strips leftover CDATA markers when they appear as title text', () => {
+    const feed = parseFeedXml(`<?xml version="1.0"?><rss><channel><title>Feed</title><item><title>&lt;![CDATA[A Guide to Which AI]]&gt;</title><link>https://example.com/guide</link></item></channel></rss>`)
+    expect(feed.items[0]?.title).toBe('A Guide to Which AI')
+  })
 })
 
 describe('filterFeedItems', () => {

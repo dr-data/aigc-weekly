@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { getWeekInfo } from './week'
-import { buildWeeklyDraftFallback, deduplicateArticles, isHnItemUrl, parseModelJson, parseWeeklyDraft, selectArticlesByScore } from './weekly'
+import { buildWeeklyDraftFallback, deduplicateArticles, getModelText, isHnItemUrl, MODEL_RUN_OPTIONS, parseModelJson, parseWeeklyDraft, selectArticlesByScore } from './weekly'
 
 describe('isHnItemUrl', () => {
   it('detects Hacker News item pages', () => {
@@ -81,9 +81,36 @@ describe('selectArticlesByScore', () => {
   })
 })
 
+describe('mODEL_RUN_OPTIONS', () => {
+  it('disables GLM thinking and requests JSON object output', () => {
+    expect(MODEL_RUN_OPTIONS.chat_template_kwargs.enable_thinking).toBe(false)
+    expect(MODEL_RUN_OPTIONS.response_format.type).toBe('json_object')
+  })
+})
+
+describe('getModelText', () => {
+  it('reads OpenAI-style chat completion content and ignores reasoning', () => {
+    expect(getModelText({
+      choices: [{
+        message: {
+          content: '{"title":"测试"}',
+          reasoning: '先思考再输出',
+          reasoning_content: '先思考再输出',
+        },
+      }],
+    })).toBe('{"title":"测试"}')
+  })
+})
+
 describe('parseModelJson', () => {
   it('accepts JSON wrapped in a Markdown code fence', () => {
     expect(parseModelJson<{ pass: boolean }>('```json\n{"pass":true}\n```')).toEqual({ pass: true })
+  })
+
+  it('ignores GLM thinking blocks that contain braces', () => {
+    expect(parseModelJson<{ pass: boolean }>('<think>use {json} here</think>{"pass":true}')).toEqual({
+      pass: true,
+    })
   })
 
   it('rejects non-JSON model output', () => {

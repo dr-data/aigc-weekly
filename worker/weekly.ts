@@ -65,7 +65,9 @@ interface ModelResponse {
   response?: string
   choices?: {
     message?: {
-      content?: string
+      content?: unknown
+      reasoning?: unknown
+      reasoning_content?: unknown
     }
   }[]
 }
@@ -80,30 +82,64 @@ const HN_FULL_SCRAPE_THRESHOLD = 85
 const PRESCORE_THRESHOLD = 65
 const MIN_SUMMARY_FOR_PRESCORE = 40
 
+export const MODEL_RUN_OPTIONS = {
+  chat_template_kwargs: {
+    enable_thinking: false,
+  },
+  response_format: {
+    type: 'json_object' as const,
+  },
+}
+
 function clip(content: string, maximum: number): string {
   if (content.length <= maximum)
     return content
   return `${content.slice(0, maximum)}\n\n[内容已截断]`
 }
 
-function getModelText(result: unknown): string {
+function asModelText(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim())
+    return value
+
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((part) => {
+        if (typeof part === 'string')
+          return part
+        if (part && typeof part === 'object' && 'text' in part && typeof (part as { text?: unknown }).text === 'string')
+          return (part as { text: string }).text
+        return ''
+      })
+      .join('')
+    if (parts.trim())
+      return parts
+  }
+
+  return undefined
+}
+
+export function stripModelThinking(content: string): string {
+  return content.replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '').trim()
+}
+
+export function getModelText(result: unknown): string {
   if (typeof result === 'string')
-    return result
+    return stripModelThinking(result)
+
+  if (!result || typeof result !== 'object')
+    throw new Error('模型未返回文本内容')
 
   const response = result as ModelResponse
-  if (typeof response.response === 'string')
-    return response.response
-
-  const content = response.choices?.[0]?.message?.content
-  if (typeof content === 'string')
-    return content
+  const message = response.choices?.[0]?.message
+  const text = asModelText(response.response) ?? asModelText(message?.content)
+  if (text)
+    return stripModelThinking(text)
 
   throw new Error('模型未返回文本内容')
 }
 
 export function parseModelJson<T>(content: string): T {
-  const trimmed = content
-    .trim()
+  const trimmed = stripModelThinking(content)
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/, '')
     .trim()
@@ -160,6 +196,7 @@ async function runModel(env: Cloudflare.Env, system: string, prompt: string, max
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const result = await env.AI.run(AI_MODEL, {
+        ...MODEL_RUN_OPTIONS,
         max_tokens: maxTokens,
         messages: [
           { role: 'system', content: system },
