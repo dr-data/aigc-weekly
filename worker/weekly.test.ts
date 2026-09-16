@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { getWeekInfo } from './week'
-import { buildWeeklyDraftFallback, deduplicateArticles, getModelText, isHnItemUrl, MODEL_RUN_OPTIONS, parseModelJson, parseWeeklyDraft, selectArticlesByScore } from './weekly'
+import { buildWeeklyDraftFallback, deduplicateArticles, getModelText, isHnItemUrl, MODEL_RUN_OPTIONS, parseModelJson, parseWeeklyDraft, parseWeeklyReview, selectArticlesByScore } from './weekly'
 
 describe('isHnItemUrl', () => {
   it('detects Hacker News item pages', () => {
@@ -113,6 +113,12 @@ describe('parseModelJson', () => {
     })
   })
 
+  it('skips invalid brace fragments before the real JSON object', () => {
+    expect(parseModelJson<{ pass: boolean }>('先思考 {oops} 再输出 {"pass":true}')).toEqual({
+      pass: true,
+    })
+  })
+
   it('rejects non-JSON model output', () => {
     expect(() => parseModelJson('无法解析')).toThrow('模型未返回有效 JSON')
   })
@@ -158,5 +164,21 @@ describe('parseWeeklyDraft', () => {
       .toThrow('周刊字段不完整')
     expect(() => parseWeeklyDraft('{"title":"标题","summary":"摘要","content":"正文","tags":"AI"}'))
       .toThrow('周刊字段不完整')
+  })
+})
+
+describe('parseWeeklyReview', () => {
+  it('accepts a valid review payload', () => {
+    expect(parseWeeklyReview('{"pass":true,"critique":""}')).toEqual({
+      critique: '',
+      pass: true,
+    })
+  })
+
+  it('treats unparseable review output as a failed review', () => {
+    expect(parseWeeklyReview('不是 JSON')).toEqual({
+      critique: '审核模型未返回有效 JSON，请保持事实准确、链接完整，并重新整理本期重点。',
+      pass: false,
+    })
   })
 })
