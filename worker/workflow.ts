@@ -165,17 +165,20 @@ export class WeeklyWorkflow extends WorkflowEntrypoint<Cloudflare.Env, WeeklyWor
       () => writeWeekly(this.env, week, selected),
     )
 
+    let passedReview = false
     for (let revision = 1; revision <= 3; revision++) {
       const review = await step.do(
         `审核周刊 ${revision}`,
         STEP_OPTIONS,
         () => reviewWeekly(this.env, week, draft),
       )
-      if (review.pass)
+      if (review.pass) {
+        passedReview = true
         break
+      }
 
       if (revision === 3)
-        throw new Error(`周刊连续三次审核未通过：${review.critique}`)
+        break
 
       draft = await step.do(
         `修订周刊 ${revision}`,
@@ -183,6 +186,9 @@ export class WeeklyWorkflow extends WorkflowEntrypoint<Cloudflare.Env, WeeklyWor
         () => reviseWeekly(this.env, draft, review.critique),
       )
     }
+
+    if (!passedReview)
+      console.warn(`周刊 ${week.weekId} 连续三次审核未通过，仍发布最近一版草稿`)
 
     const published = await step.do(
       '发布 Payload 草稿',

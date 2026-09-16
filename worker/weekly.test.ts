@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { getWeekInfo } from './week'
-import { buildWeeklyDraftFallback, deduplicateArticles, isHnItemUrl, parseModelJson, parseWeeklyDraft, selectArticlesByScore } from './weekly'
+import { buildWeeklyDraftFallback, deduplicateArticles, getModelText, isHnItemUrl, MODEL_RUN_OPTIONS, parseModelJson, parseWeeklyDraft, parseWeeklyReview, selectArticlesByScore } from './weekly'
 
 describe('isHnItemUrl', () => {
   it('detects Hacker News item pages', () => {
@@ -81,9 +81,52 @@ describe('selectArticlesByScore', () => {
   })
 })
 
+describe('mODEL_RUN_OPTIONS', () => {
+  it('requests JSON object output', () => {
+    expect(MODEL_RUN_OPTIONS.response_format.type).toBe('json_object')
+  })
+})
+
+describe('getModelText', () => {
+  it('reads OpenAI-style chat completion content and ignores reasoning', () => {
+    expect(getModelText({
+      choices: [{
+        message: {
+          content: '{"title":"测试"}',
+          reasoning: '先思考再输出',
+          reasoning_content: '先思考再输出',
+        },
+      }],
+    })).toBe('{"title":"测试"}')
+  })
+
+  it('stringifies a parsed JSON object in the Workers AI response field', () => {
+    expect(getModelText({
+      response: {
+        content: '测试正文',
+        summary: '测试摘要',
+        tags: ['AI'],
+        title: '测试标题',
+      },
+    })).toBe('{"content":"测试正文","summary":"测试摘要","tags":["AI"],"title":"测试标题"}')
+  })
+})
+
 describe('parseModelJson', () => {
   it('accepts JSON wrapped in a Markdown code fence', () => {
     expect(parseModelJson<{ pass: boolean }>('```json\n{"pass":true}\n```')).toEqual({ pass: true })
+  })
+
+  it('ignores GLM thinking blocks that contain braces', () => {
+    expect(parseModelJson<{ pass: boolean }>('<think>use {json} here</think>{"pass":true}')).toEqual({
+      pass: true,
+    })
+  })
+
+  it('skips invalid brace fragments before the real JSON object', () => {
+    expect(parseModelJson<{ pass: boolean }>('先思考 {oops} 再输出 {"pass":true}')).toEqual({
+      pass: true,
+    })
   })
 
   it('rejects non-JSON model output', () => {
@@ -131,5 +174,21 @@ describe('parseWeeklyDraft', () => {
       .toThrow('周刊字段不完整')
     expect(() => parseWeeklyDraft('{"title":"标题","summary":"摘要","content":"正文","tags":"AI"}'))
       .toThrow('周刊字段不完整')
+  })
+})
+
+describe('parseWeeklyReview', () => {
+  it('accepts a valid review payload', () => {
+    expect(parseWeeklyReview('{"pass":true,"critique":""}')).toEqual({
+      critique: '',
+      pass: true,
+    })
+  })
+
+  it('treats unparseable review output as a failed review', () => {
+    expect(parseWeeklyReview('不是 JSON')).toEqual({
+      critique: '审核模型未返回有效 JSON，请保持事实准确、链接完整，并重新整理本期重点。',
+      pass: false,
+    })
   })
 })

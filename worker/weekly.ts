@@ -65,7 +65,9 @@ interface ModelResponse {
   response?: string
   choices?: {
     message?: {
-      content?: string
+      content?: unknown
+      reasoning?: unknown
+      reasoning_content?: unknown
     }
   }[]
 }
@@ -80,54 +82,134 @@ const HN_FULL_SCRAPE_THRESHOLD = 85
 const PRESCORE_THRESHOLD = 65
 const MIN_SUMMARY_FOR_PRESCORE = 40
 
+export const MODEL_RUN_OPTIONS = {
+  response_format: {
+    type: 'json_object' as const,
+  },
+}
+
 function clip(content: string, maximum: number): string {
   if (content.length <= maximum)
     return content
   return `${content.slice(0, maximum)}\n\n[内容已截断]`
 }
 
-function getModelText(result: unknown): string {
+function asModelText(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim())
+    return value
+
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((part) => {
+        if (typeof part === 'string')
+          return part
+        if (part && typeof part === 'object' && 'text' in part && typeof (part as { text?: unknown }).text === 'string')
+          return (part as { text: string }).text
+        return ''
+      })
+      .join('')
+    if (parts.trim())
+      return parts
+  }
+
+  if (value && typeof value === 'object')
+    return JSON.stringify(value)
+
+  return undefined
+}
+
+export function stripModelThinking(content: string): string {
+  return content.replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '').trim()
+}
+
+function extractJsonValue(text: string, start: number): string | undefined {
+  const pairs: Record<string, string> = { '{': '}', '[': ']' }
+  const opener = text[start]
+  const expectedCloser = pairs[opener]
+  if (!expectedCloser)
+    return undefined
+
+  const stack: string[] = []
+  let inString = false
+  let escape = false
+
+  for (let index = start; index < text.length; index++) {
+    const character = text[index]
+    if (inString) {
+      if (escape) {
+        escape = false
+        continue
+      }
+      if (character === '\\') {
+        escape = true
+        continue
+      }
+      if (character === '"')
+        inString = false
+      continue
+    }
+
+    if (character === '"') {
+      inString = true
+      continue
+    }
+
+    if (character === '{' || character === '[') {
+      stack.push(pairs[character] ?? character)
+      continue
+    }
+
+    if (character === '}' || character === ']') {
+      if (stack.pop() !== character)
+        return undefined
+      if (stack.length === 0)
+        return text.slice(start, index + 1)
+    }
+  }
+
+  return undefined
+}
+
+export function getModelText(result: unknown): string {
   if (typeof result === 'string')
-    return result
+    return stripModelThinking(result)
+
+  if (!result || typeof result !== 'object')
+    throw new Error('模型未返回文本内容')
 
   const response = result as ModelResponse
-  if (typeof response.response === 'string')
-    return response.response
-
-  const content = response.choices?.[0]?.message?.content
-  if (typeof content === 'string')
-    return content
+  const message = response.choices?.[0]?.message
+  const text = asModelText(response.response) ?? asModelText(message?.content)
+  if (text)
+    return stripModelThinking(text)
 
   throw new Error('模型未返回文本内容')
 }
 
 export function parseModelJson<T>(content: string): T {
-  const trimmed = content
-    .trim()
+  const trimmed = stripModelThinking(content)
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/, '')
     .trim()
 
-  const objectStart = trimmed.indexOf('{')
-  const arrayStart = trimmed.indexOf('[')
-  const start = [objectStart, arrayStart]
-    .filter(index => index >= 0)
-    .sort((a, b) => a - b)[0]
+  for (let index = 0; index < trimmed.length; index++) {
+    const character = trimmed[index]
+    if (character !== '{' && character !== '[')
+      continue
 
-  if (start === undefined)
-    throw new Error('模型未返回有效 JSON')
+    const candidate = extractJsonValue(trimmed, index)
+    if (!candidate)
+      continue
 
-  const opener = trimmed[start]
-  const end = opener === '{' ? trimmed.lastIndexOf('}') : trimmed.lastIndexOf(']')
-  if (end < start)
-    throw new Error('模型未返回有效 JSON')
-
-  try {
-    return JSON.parse(trimmed.slice(start, end + 1)) as T
+    try {
+      return JSON.parse(candidate) as T
+    }
+    catch {
+      continue
+    }
   }
-  catch {
-    throw new Error('模型未返回有效 JSON')
-  }
+
+  throw new Error('模型未返回有效 JSON')
 }
 
 export function parseWeeklyDraft(content: string): WeeklyDraft {
@@ -160,9 +242,10 @@ async function runModel(env: Cloudflare.Env, system: string, prompt: string, max
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const result = await env.AI.run(AI_MODEL, {
+        ...MODEL_RUN_OPTIONS,
         max_tokens: maxTokens,
         messages: [
-          { role: 'system', content: system },
+          { role: 'system', content: `${system}\n/no_think` },
           { role: 'user', content: prompt },
         ],
         temperature: 0.2,
@@ -779,6 +862,23 @@ ${JSON.stringify(articles.map(article => ({
   }
 }
 
+export function parseWeeklyReview(content: string): { critique: string, pass: boolean } {
+  try {
+    const review = parseModelJson<{ critique?: unknown, pass?: unknown } | null>(content)
+    return {
+      critique: typeof review?.critique === 'string' ? review.critique.trim() : '',
+      pass: review?.pass === true,
+    }
+  }
+  catch (error) {
+    console.warn('周刊审核结果无法解析，视为未通过', error)
+    return {
+      critique: '审核模型未返回有效 JSON，请保持事实准确、链接完整，并重新整理本期重点。',
+      pass: false,
+    }
+  }
+}
+
 export async function reviewWeekly(
   env: Cloudflare.Env,
   week: WeekInfo,
@@ -798,13 +898,10 @@ export async function reviewWeekly(
 
 草稿：
 ${JSON.stringify(draft)}`,
+    4_096,
   )
 
-  const review = parseModelJson<{ critique?: unknown, pass?: unknown } | null>(output)
-  return {
-    critique: typeof review?.critique === 'string' ? review.critique.trim() : '',
-    pass: review?.pass === true,
-  }
+  return parseWeeklyReview(output)
 }
 
 export async function reviseWeekly(
@@ -812,18 +909,24 @@ export async function reviseWeekly(
   draft: WeeklyDraft,
   critique: string,
 ): Promise<WeeklyDraft> {
-  const output = await runModel(
-    env,
-    '你是繁體中文（台灣）科技專欄作家。根據審稿意見修訂，不得刪除有效原文連結或加入輸入中不存在的事實。只返回 JSON。',
-    `返回格式：{"title":"标题","summary":"摘要","content":"Markdown 正文","tags":["标签"]}
+  try {
+    const output = await runModel(
+      env,
+      '你是繁體中文（台灣）科技專欄作家。根據審稿意見修訂，不得刪除有效原文連結或加入輸入中不存在的事實。只返回 JSON。',
+      `返回格式：{"title":"标题","summary":"摘要","content":"Markdown 正文","tags":["标签"]}
 
 审稿意见：
 ${critique}
 
 原草稿：
 ${JSON.stringify(draft)}`,
-    8_192,
-  )
+      8_192,
+    )
 
-  return parseWeeklyDraft(output)
+    return parseWeeklyDraft(output)
+  }
+  catch (error) {
+    console.warn('周刊修订失败，保留上一版草稿', error)
+    return draft
+  }
 }

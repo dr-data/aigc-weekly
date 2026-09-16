@@ -50,8 +50,24 @@ function normalizeDate(value: string | null | undefined): string {
   return parsed.toISOString().slice(0, 10)
 }
 
+function decodeFeedEntities(value: string): string {
+  return value
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, '\'')
+    .replace(/&apos;/g, '\'')
+    .replace(/&amp;/g, '&')
+}
+
+function decodeFeedText(value: string): string {
+  return decodeFeedEntities(value)
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .trim()
+}
+
 function textContent(element: Element | null | undefined): string {
-  return element?.textContent?.trim() ?? ''
+  return decodeFeedText(element?.textContent?.trim() ?? '')
 }
 
 function firstLink(element: Element): string {
@@ -74,25 +90,28 @@ function normalizeFeedItemUrl(url: string): string {
   return trimmed
 }
 
+function xmlTagText(block: string, tag: string): string {
+  const match = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i'))
+  return decodeFeedText(match?.[1] ?? '')
+}
+
 function parseRssItemsFromRegex(xml: string): FeedItem[] {
   const items: FeedItem[] = []
   const itemPattern = /<item\b[^>]*>([\s\S]*?)<\/item>/gi
 
   for (const match of xml.matchAll(itemPattern)) {
     const block = match[1] ?? ''
-    const title = block.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i)?.[1]?.trim()
-    const url = block.match(/<link[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/link>/i)?.[1]?.trim()
-      || block.match(/<guid[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/guid>/i)?.[1]?.trim()
-    const pubDate = block.match(/<pubDate[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/pubDate>/i)?.[1]?.trim()
-      || block.match(/<dc:date[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/dc:date>/i)?.[1]?.trim()
-    const summary = block.match(/<description[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/i)?.[1]?.trim()
+    const title = xmlTagText(block, 'title')
+    const url = xmlTagText(block, 'link') || xmlTagText(block, 'guid')
+    const pubDate = xmlTagText(block, 'pubDate') || xmlTagText(block, 'dc:date')
+    const summary = xmlTagText(block, 'description')
 
     if (!title || !url)
       continue
 
     items.push({
       date: normalizeDate(pubDate),
-      summary: summary ?? '',
+      summary,
       title,
       url: normalizeFeedItemUrl(url),
     })
