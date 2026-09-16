@@ -83,9 +83,6 @@ const PRESCORE_THRESHOLD = 65
 const MIN_SUMMARY_FOR_PRESCORE = 40
 
 export const MODEL_RUN_OPTIONS = {
-  chat_template_kwargs: {
-    enable_thinking: false,
-  },
   response_format: {
     type: 'json_object' as const,
   },
@@ -114,6 +111,9 @@ function asModelText(value: unknown): string | undefined {
     if (parts.trim())
       return parts
   }
+
+  if (value && typeof value === 'object')
+    return JSON.stringify(value)
 
   return undefined
 }
@@ -245,7 +245,7 @@ async function runModel(env: Cloudflare.Env, system: string, prompt: string, max
         ...MODEL_RUN_OPTIONS,
         max_tokens: maxTokens,
         messages: [
-          { role: 'system', content: system },
+          { role: 'system', content: `${system}\n/no_think` },
           { role: 'user', content: prompt },
         ],
         temperature: 0.2,

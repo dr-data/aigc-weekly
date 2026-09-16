@@ -82,8 +82,7 @@ describe('selectArticlesByScore', () => {
 })
 
 describe('mODEL_RUN_OPTIONS', () => {
-  it('disables GLM thinking and requests JSON object output', () => {
-    expect(MODEL_RUN_OPTIONS.chat_template_kwargs.enable_thinking).toBe(false)
+  it('requests JSON object output', () => {
     expect(MODEL_RUN_OPTIONS.response_format.type).toBe('json_object')
   })
 })
@@ -99,6 +98,17 @@ describe('getModelText', () => {
         },
       }],
     })).toBe('{"title":"测试"}')
+  })
+
+  it('stringifies a parsed JSON object in the Workers AI response field', () => {
+    expect(getModelText({
+      response: {
+        content: '测试正文',
+        summary: '测试摘要',
+        tags: ['AI'],
+        title: '测试标题',
+      },
+    })).toBe('{"content":"测试正文","summary":"测试摘要","tags":["AI"],"title":"测试标题"}')
   })
 })
 
