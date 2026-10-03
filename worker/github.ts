@@ -80,7 +80,7 @@ export function buildIssueBody(
   const cmsAdminUrl = buildCmsAdminUrl(env, payload)
 
   return [
-    '> 自动生成的周刊草稿，待人工审核后发布。',
+    '> 自动生成的周刊，已写入 CMS 并设为已发布。如需修订请在后台修改。',
     '',
     `- **期号**：${week.weekId}`,
     `- **周期**：${week.startDate} ~ ${week.endDate}`,

@@ -65,7 +65,7 @@ export async function publishWeekly(
     content: draft.content,
     issueNumber: week.weekId,
     publishDate: week.currentDate,
-    status: 'draft',
+    status: 'published',
     summary: draft.summary,
     tags: draft.tags.map(value => ({ value })),
     title: draft.title,
