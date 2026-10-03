@@ -41,6 +41,7 @@ describe('buildIssueBody', () => {
     const body = buildIssueBody(createEnv(), week, draft, payload)
 
     expect(body).toContain('Y25W33')
+    expect(body).toContain('已写入 CMS 并设为已发布')
     expect(body).toContain('https://ai.shor.lol/weekly/Y25W33')
     expect(body).toContain('https://ai.shor.lol/admin/collections/weekly/42')
     expect(body).toContain('这是摘要。')
