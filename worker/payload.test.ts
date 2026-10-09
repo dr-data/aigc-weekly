@@ -60,7 +60,7 @@ describe('publishWeekly', () => {
       if (url.includes('/api/weekly?') && init?.method === undefined)
         return Response.json({ docs: [{ id: 47 }] })
       if (url.endsWith('/api/weekly/47') && init?.method === 'PATCH')
-        return Response.json({ id: 47 })
+        return Response.json({ doc: { id: 47 } })
       return new Response('not found', { status: 404 })
     })
     vi.stubGlobal('fetch', fetchMock)
