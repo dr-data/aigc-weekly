@@ -1,10 +1,13 @@
-import { revalidateTag } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 
 export const WEEKLY_CACHE_TAG = 'weekly'
 
 export async function revalidateWeeklyCache(): Promise<void> {
   try {
     revalidateTag(WEEKLY_CACHE_TAG)
+    revalidatePath('/')
+    revalidatePath('/rss.xml')
+    revalidatePath('/weekly/[slug]', 'page')
   }
   catch (error) {
     console.error('Next.js 周刊缓存失效异常', error)
