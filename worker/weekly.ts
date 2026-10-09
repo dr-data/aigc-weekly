@@ -775,12 +775,32 @@ export function toWeeklyPromptArticles(articles: WeeklyArticle[]) {
   return articles.map(article => ({
     category: article.category,
     date: article.date,
+    imageMarkdown: article.imageMarkdown,
     score: article.score,
     source: article.source,
     summary: article.summary,
     title: article.title,
     url: article.url,
   }))
+}
+
+export function hasExpectedArticleLayout(content: string, articles: WeeklyArticle[]): boolean {
+  if (articles.length === 0)
+    return true
+
+  const linked = articles.filter(article => content.includes(article.url)).length
+  if (linked < Math.max(1, Math.ceil(articles.length / 2)))
+    return false
+
+  const withImages = articles.filter(article => article.imageMarkdown)
+  if (withImages.length === 0)
+    return true
+
+  const inserted = withImages.filter((article) => {
+    const image = article.imageMarkdown
+    return Boolean(image && content.includes(image))
+  }).length
+  return inserted >= Math.max(1, Math.ceil(withImages.length / 2))
 }
 
 export function buildWeeklyDraftFallback(week: WeekInfo, articles: WeeklyArticle[]): WeeklyDraft {
@@ -838,10 +858,15 @@ export async function writeWeekly(
         `你是面向科技愛好者和開發者的繁體中文（台灣）科技專欄作家。
 寫作應簡單、人性化、清晰、專業客觀，不堆砌形容詞。所有事實必須來自輸入素材。
 原文連結必須用貼近標題或核心名詞的錨點文字自然嵌入段落，禁止單列「原文連結」或「閱讀更多」。
-不要插入图片 Markdown，也不要输出思考过程。`,
+不要输出思考过程。`,
         `撰寫「DrData 的 AIGC 週刊（${week.weekId}）」。
-正文使用 Markdown，包含简短开场白、资讯、模型、工具和结束语。没有素材的分类可以省略。
-每条素材写成连贯段落，不要在标题后附发布日期。
+版式必須接近既有週刊：
+1. 開頭一段開場白，不要再用大標題重複刊名。
+2. 使用 ### 資訊、### 模型、### 工具；沒有素材的分類可以省略。
+3. 每條素材獨立成段，禁止把多條擠進同一段。
+4. 段落末尾用 [標題](url) 自然收束，不要在標題後附發布日期。
+5. 若素材含 imageMarkdown，在該段結束後單獨一行原樣插入，不要修改 URL。
+6. 結尾一段結束語，不要寫成條目列表。
 
 返回严格 JSON：
 {"title":"标题","summary":"不超过 200 字摘要","content":"Markdown 正文","tags":["标签"]}
@@ -853,9 +878,13 @@ ${JSON.stringify(toWeeklyPromptArticles(articles))}`,
       )
 
       const draft = parseWeeklyDraft(output)
+      const content = ensureArticleImages(draft.content, articles)
+      if (!hasExpectedArticleLayout(content, articles))
+        throw new Error('周刊版式缺少逐条链接或配图')
+
       return {
         ...draft,
-        content: ensureArticleImages(draft.content, articles),
+        content,
       }
     }
     catch (error) {
@@ -895,9 +924,10 @@ export async function reviewWeekly(
     `检查草稿是否满足：
 1. 内容与 AIGC 高度相关且没有营销软文；
 2. 没有超出素材的事实断言；
-3. 原文链接均保留为自然锚文本；
-4. 中文准确、流畅、简洁；
-5. 内容属于 ${week.startDate} 至 ${week.endDate} 的本期范围。
+3. 每条素材独立成段，原文链接为自然锚文本，禁止把多条挤进同一段；
+4. 有配图的条目必须保留段落后的图片 Markdown，不得删除；
+5. 中文准确、流畅、简洁；
+6. 内容属于 ${week.startDate} 至 ${week.endDate} 的本期范围。
 
 返回格式：{"pass":true|false,"critique":"通过时为空字符串，否则给出具体修改意见"}
 
@@ -922,7 +952,7 @@ export async function reviseWeekly(
   try {
     const output = await runModel(
       env,
-      '你是繁體中文（台灣）科技專欄作家。根據審稿意見修訂，不得刪除有效原文連結或加入輸入中不存在的事實。只返回 JSON。不要插入图片 Markdown。',
+      '你是繁體中文（台灣）科技專欄作家。根據審稿意見修訂，不得刪除有效原文連結或加入輸入中不存在的事實。只返回 JSON。保持每條素材獨立成段，並在段後原樣保留 imageMarkdown。',
       `返回格式：{"title":"标题","summary":"摘要","content":"Markdown 正文","tags":["标签"]}
 
 审稿意见：
@@ -932,7 +962,14 @@ ${critique}
 ${JSON.stringify({
   ...draft,
   content: withoutImageMarkdown(draft.content),
-})}`,
+})}
+
+素材配图（修订后仍须按 URL 插回对应段落后）：
+${JSON.stringify(articles.filter(article => article.imageMarkdown).map(article => ({
+  imageMarkdown: article.imageMarkdown,
+  title: article.title,
+  url: article.url,
+})))}`,
       WRITE_MAX_TOKENS,
     )
 

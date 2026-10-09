@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { getWeekInfo } from './week'
-import { buildWeeklyDraftFallback, deduplicateArticles, getModelText, isHnItemUrl, MODEL_RUN_OPTIONS, parseModelJson, parseWeeklyDraft, parseWeeklyReview, selectArticlesByScore, toWeeklyPromptArticles, writeWeekly } from './weekly'
+import { buildWeeklyDraftFallback, deduplicateArticles, getModelText, hasExpectedArticleLayout, isHnItemUrl, MODEL_RUN_OPTIONS, parseModelJson, parseWeeklyDraft, parseWeeklyReview, selectArticlesByScore, toWeeklyPromptArticles, writeWeekly } from './weekly'
 
 describe('isHnItemUrl', () => {
   it('detects Hacker News item pages', () => {
@@ -194,7 +194,7 @@ describe('parseWeeklyReview', () => {
 })
 
 describe('toWeeklyPromptArticles', () => {
-  it('omits image markdown so the writing JSON stays small', () => {
+  it('keeps image markdown so the writer can restore cover images', () => {
     expect(toWeeklyPromptArticles([{
       category: 'news',
       date: '2026-10-01',
@@ -208,12 +208,32 @@ describe('toWeeklyPromptArticles', () => {
     }])).toEqual([{
       category: 'news',
       date: '2026-10-01',
+      imageMarkdown: '![cover](https://wsrv.nl/?url=https://example.com/cover.jpg&w=1200)',
       score: 90,
       source: 'Every',
       summary: '摘要',
       title: 'How to Get Better at AI',
       url: 'https://every.to/p/example',
     }])
+  })
+})
+
+describe('hasExpectedArticleLayout', () => {
+  it('requires per-article links and cover images', () => {
+    const articles = [{
+      category: 'news' as const,
+      date: '2026-10-01',
+      imageMarkdown: '![cover](https://wsrv.nl/?url=https://example.com/cover.jpg&w=1200)',
+      reason: '相关',
+      score: 90,
+      source: 'Every',
+      summary: '摘要',
+      title: 'How to Get Better at AI',
+      url: 'https://every.to/p/example',
+    }]
+
+    expect(hasExpectedArticleLayout('本期没有链接。', articles)).toBe(false)
+    expect(hasExpectedArticleLayout('[How to Get Better at AI](https://every.to/p/example)\n\n![cover](https://wsrv.nl/?url=https://example.com/cover.jpg&w=1200)\n', articles)).toBe(true)
   })
 })
 
@@ -238,8 +258,8 @@ describe('writeWeekly', () => {
         run: async (_model: string, input: { max_tokens?: number, messages: { content: string }[] }) => {
           calls += 1
           expect(input.max_tokens).toBeGreaterThanOrEqual(16_384)
-          expect(input.messages[1]?.content).not.toContain('imageMarkdown')
-          expect(input.messages[1]?.content).not.toContain('wsrv.nl')
+          expect(input.messages[1]?.content).toContain('imageMarkdown')
+          expect(input.messages[1]?.content).toContain('wsrv.nl')
           if (calls === 1)
             return { response: 'truncated { "title":' }
 
@@ -260,6 +280,42 @@ describe('writeWeekly', () => {
     expect(calls).toBe(2)
     expect(draft.content).not.toContain('自動 fallback')
     expect(draft.content).toContain('How to Get Better at AI')
+    expect(draft.content).toContain('wsrv.nl')
+  })
+
+  it('retries when the draft omits per-article links or images', async () => {
+    let calls = 0
+    const env = {
+      AI: {
+        run: async () => {
+          calls += 1
+          if (calls === 1) {
+            return {
+              response: {
+                content: '本期聚焦 AI 原生思维与开发流程。',
+                summary: '本期摘要',
+                tags: ['AIGC'],
+                title: 'DrData 的 AIGC 週刊（Y26W39）',
+              },
+            }
+          }
+
+          return {
+            response: {
+              content: '[How to Get Better at AI](https://every.to/p/example)',
+              summary: '本期摘要',
+              tags: ['AIGC'],
+              title: 'DrData 的 AIGC 週刊（Y26W39）',
+            },
+          }
+        },
+      },
+    } as unknown as Cloudflare.Env
+
+    const draft = await writeWeekly(env, week, articles)
+
+    expect(calls).toBe(2)
+    expect(draft.content).toContain('https://every.to/p/example')
     expect(draft.content).toContain('wsrv.nl')
   })
 
