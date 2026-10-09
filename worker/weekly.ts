@@ -820,6 +820,9 @@ export function hasExpectedArticleLayout(content: string, articles: WeeklyArticl
   if (articles.length === 0)
     return true
 
+  if (!/^### (?:資訊|资讯|模型|工具)\s*$/m.test(content))
+    return false
+
   const linked = articles.filter(article => content.includes(article.url)).length
   if (linked < Math.max(1, Math.ceil(articles.length / 2)))
     return false

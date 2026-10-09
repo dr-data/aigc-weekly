@@ -286,7 +286,8 @@ describe('hasExpectedArticleLayout', () => {
     }]
 
     expect(hasExpectedArticleLayout('本期没有链接。', articles)).toBe(false)
-    expect(hasExpectedArticleLayout('[How to Get Better at AI](https://every.to/p/example)\n\n![cover](https://wsrv.nl/?url=https://example.com/cover.jpg&w=1200)\n', articles)).toBe(true)
+    expect(hasExpectedArticleLayout('[How to Get Better at AI](https://every.to/p/example)\n\n![cover](https://wsrv.nl/?url=https://example.com/cover.jpg&w=1200)\n', articles)).toBe(false)
+    expect(hasExpectedArticleLayout('### 資訊\n[How to Get Better at AI](https://every.to/p/example)\n\n![cover](https://wsrv.nl/?url=https://example.com/cover.jpg&w=1200)\n', articles)).toBe(true)
   })
 })
 
@@ -318,7 +319,7 @@ describe('writeWeekly', () => {
 
           return {
             response: {
-              content: '开场白 [How to Get Better at AI](https://every.to/p/example)',
+              content: '开场白\n\n### 資訊\n[How to Get Better at AI](https://every.to/p/example)',
               summary: '本期摘要',
               tags: ['AIGC'],
               title: 'DrData 的 AIGC 週刊（Y26W39）',
@@ -355,7 +356,7 @@ describe('writeWeekly', () => {
 
           return {
             response: {
-              content: '[How to Get Better at AI](https://every.to/p/example)',
+              content: '### 資訊\n[How to Get Better at AI](https://every.to/p/example)',
               summary: '本期摘要',
               tags: ['AIGC'],
               title: 'DrData 的 AIGC 週刊（Y26W39）',
