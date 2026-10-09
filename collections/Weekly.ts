@@ -74,15 +74,15 @@ export const Weekly: CollectionConfig = {
       type: 'select',
       options: [
         {
-          label: '草稿',
-          value: 'draft',
-        },
-        {
           label: '已發佈',
           value: 'published',
         },
+        {
+          label: '草稿',
+          value: 'draft',
+        },
       ],
-      defaultValue: 'draft',
+      defaultValue: 'published',
       required: true,
       admin: {
         position: 'sidebar',
