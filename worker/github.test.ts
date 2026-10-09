@@ -154,8 +154,9 @@ describe('publishWeeklyIssue', () => {
     const result = await publishWeeklyIssueSafely(createEnv(), week, draft, payload)
 
     expect(result).toEqual({
+      error: 'GitHub API 401：{"message":"Bad credentials","status":"401"}',
       number: 0,
-      operation: 'created',
+      operation: 'skipped',
       url: '',
     })
   })

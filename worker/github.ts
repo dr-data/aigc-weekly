@@ -5,8 +5,9 @@ import type { WeeklyDraft } from './weekly'
 const REPOSITORY = 'dr-data/aigc-weekly'
 
 export interface PublishedGitHubIssue {
+  error?: string
   number: number
-  operation: 'created' | 'updated'
+  operation: 'created' | 'skipped' | 'updated'
   url: string
 }
 
@@ -250,10 +251,12 @@ export async function publishWeeklyIssueSafely(
     return await publishWeeklyIssue(env, week, draft, payload)
   }
   catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
     console.error('GitHub Issue 发布失败，周刊草稿已写入 Payload', error)
     return {
+      error: message.slice(0, 500),
       number: 0,
-      operation: 'created',
+      operation: 'skipped',
       url: '',
     }
   }

@@ -1,5 +1,6 @@
 {
   "$schema": "../node_modules/wrangler/config-schema.json",
+  "account_id": "bd967aab2d5f80b6a7f520a460dba284",
   "name": "aigc-weekly-worker",
   "main": "./index.ts",
   "compatibility_date": "2026-08-23",
