@@ -3,8 +3,8 @@ import type { CollectionConfig } from 'payload'
 import { revalidateWeeklyCache } from '@/lib/weekly/cache'
 // import OvertypeFieldComponent from '@/components/payload/overtype'
 
-async function invalidateWeeklyCache<T>(doc: T): Promise<T> {
-  await revalidateWeeklyCache()
+async function invalidateWeeklyCache<T extends { issueNumber?: string }>(doc: T): Promise<T> {
+  await revalidateWeeklyCache(doc.issueNumber)
   return doc
 }
 
