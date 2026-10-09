@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { getWeekInfo } from './week'
-import { buildWeeklyDraftFallback, deduplicateArticles, getModelText, isHnItemUrl, MODEL_RUN_OPTIONS, parseModelJson, parseWeeklyDraft, parseWeeklyReview, selectArticlesByScore } from './weekly'
+import { buildWeeklyDraftFallback, deduplicateArticles, getModelText, isHnItemUrl, MODEL_RUN_OPTIONS, parseModelJson, parseWeeklyDraft, parseWeeklyReview, selectArticlesByScore, toWeeklyPromptArticles, writeWeekly } from './weekly'
 
 describe('isHnItemUrl', () => {
   it('detects Hacker News item pages', () => {
@@ -190,5 +190,86 @@ describe('parseWeeklyReview', () => {
       critique: '审核模型未返回有效 JSON，请保持事实准确、链接完整，并重新整理本期重点。',
       pass: false,
     })
+  })
+})
+
+describe('toWeeklyPromptArticles', () => {
+  it('omits image markdown so the writing JSON stays small', () => {
+    expect(toWeeklyPromptArticles([{
+      category: 'news',
+      date: '2026-10-01',
+      imageMarkdown: '![cover](https://wsrv.nl/?url=https://example.com/cover.jpg&w=1200)',
+      reason: '相关',
+      score: 90,
+      source: 'Every',
+      summary: '摘要',
+      title: 'How to Get Better at AI',
+      url: 'https://every.to/p/example',
+    }])).toEqual([{
+      category: 'news',
+      date: '2026-10-01',
+      score: 90,
+      source: 'Every',
+      summary: '摘要',
+      title: 'How to Get Better at AI',
+      url: 'https://every.to/p/example',
+    }])
+  })
+})
+
+describe('writeWeekly', () => {
+  const week = getWeekInfo('2026-10-03')
+  const articles = [{
+    category: 'news' as const,
+    date: '2026-10-01',
+    imageMarkdown: '![How to Get Better at AI](https://wsrv.nl/?url=https://example.com/cover.jpg&w=1200)',
+    reason: '相关',
+    score: 90,
+    source: 'Every',
+    summary: '作者分享如何用 Codex 评估 AI 使用习惯。',
+    title: 'How to Get Better at AI',
+    url: 'https://every.to/p/example',
+  }]
+
+  it('retries unparseable JSON and does not publish the fallback banner', async () => {
+    let calls = 0
+    const env = {
+      AI: {
+        run: async (_model: string, input: { max_tokens?: number, messages: { content: string }[] }) => {
+          calls += 1
+          expect(input.max_tokens).toBeGreaterThanOrEqual(16_384)
+          expect(input.messages[1]?.content).not.toContain('imageMarkdown')
+          expect(input.messages[1]?.content).not.toContain('wsrv.nl')
+          if (calls === 1)
+            return { response: 'truncated { "title":' }
+
+          return {
+            response: {
+              content: '开场白 [How to Get Better at AI](https://every.to/p/example)',
+              summary: '本期摘要',
+              tags: ['AIGC'],
+              title: 'DrData 的 AIGC 週刊（Y26W39）',
+            },
+          }
+        },
+      },
+    } as unknown as Cloudflare.Env
+
+    const draft = await writeWeekly(env, week, articles)
+
+    expect(calls).toBe(2)
+    expect(draft.content).not.toContain('自動 fallback')
+    expect(draft.content).toContain('How to Get Better at AI')
+    expect(draft.content).toContain('wsrv.nl')
+  })
+
+  it('throws after repeated unparseable JSON instead of returning fallback', async () => {
+    const env = {
+      AI: {
+        run: async () => ({ response: '不是 JSON' }),
+      },
+    } as unknown as Cloudflare.Env
+
+    await expect(writeWeekly(env, week, articles)).rejects.toThrow('模型未返回有效 JSON')
   })
 })

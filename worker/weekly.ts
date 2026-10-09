@@ -81,6 +81,8 @@ const SCORE_PARALLELISM = 3
 const HN_FULL_SCRAPE_THRESHOLD = 85
 const PRESCORE_THRESHOLD = 65
 const MIN_SUMMARY_FOR_PRESCORE = 40
+const WRITE_MAX_TOKENS = 16_384
+const WRITE_PARSE_ATTEMPTS = 3
 
 export const MODEL_RUN_OPTIONS = {
   response_format: {
@@ -769,6 +771,18 @@ const CATEGORY_HEADINGS: Record<WeeklyArticle['category'], string> = {
   tool: '工具',
 }
 
+export function toWeeklyPromptArticles(articles: WeeklyArticle[]) {
+  return articles.map(article => ({
+    category: article.category,
+    date: article.date,
+    score: article.score,
+    source: article.source,
+    summary: article.summary,
+    title: article.title,
+    url: article.url,
+  }))
+}
+
 export function buildWeeklyDraftFallback(week: WeekInfo, articles: WeeklyArticle[]): WeeklyDraft {
   const grouped: Record<WeeklyArticle['category'], WeeklyArticle[]> = {
     news: [],
@@ -815,36 +829,29 @@ export async function writeWeekly(
   week: WeekInfo,
   articles: WeeklyArticle[],
 ): Promise<WeeklyDraft> {
-  try {
-    const output = await runModel(
-      env,
-      `你是面向科技愛好者和開發者的繁體中文（台灣）科技專欄作家。
+  let lastError: unknown
+
+  for (let attempt = 0; attempt < WRITE_PARSE_ATTEMPTS; attempt++) {
+    try {
+      const output = await runModel(
+        env,
+        `你是面向科技愛好者和開發者的繁體中文（台灣）科技專欄作家。
 寫作應簡單、人性化、清晰、專業客觀，不堆砌形容詞。所有事實必須來自輸入素材。
-原文連結必須用貼近標題或核心名詞的錨點文字自然嵌入段落，禁止單列「原文連結」或「閱讀更多」。`,
-      `撰寫「DrData 的 AIGC 週刊（${week.weekId}）」。
+原文連結必須用貼近標題或核心名詞的錨點文字自然嵌入段落，禁止單列「原文連結」或「閱讀更多」。
+不要插入图片 Markdown，也不要输出思考过程。`,
+        `撰寫「DrData 的 AIGC 週刊（${week.weekId}）」。
 正文使用 Markdown，包含简短开场白、资讯、模型、工具和结束语。没有素材的分类可以省略。
 每条素材写成连贯段落，不要在标题后附发布日期。
-若素材 JSON 中包含 imageMarkdown 字段，请在该条段落结束后单独一行插入 imageMarkdown，不要修改其中的 URL。
 
 返回严格 JSON：
 {"title":"标题","summary":"不超过 200 字摘要","content":"Markdown 正文","tags":["标签"]}
 
 本期范围：${week.startDate} 至 ${week.endDate}
 素材：
-${JSON.stringify(articles.map(article => ({
-  category: article.category,
-  date: article.date,
-  imageMarkdown: article.imageMarkdown,
-  score: article.score,
-  source: article.source,
-  summary: article.summary,
-  title: article.title,
-  url: article.url,
-})))}`,
-      8_192,
-    )
+${JSON.stringify(toWeeklyPromptArticles(articles))}`,
+        WRITE_MAX_TOKENS,
+      )
 
-    try {
       const draft = parseWeeklyDraft(output)
       return {
         ...draft,
@@ -852,14 +859,12 @@ ${JSON.stringify(articles.map(article => ({
       }
     }
     catch (error) {
-      console.warn('周刊模型输出无法解析，使用 fallback 草稿', error)
-      return buildWeeklyDraftFallback(week, articles)
+      lastError = error
+      console.warn(`周刊撰写第 ${attempt + 1} 次失败，将重试`, error)
     }
   }
-  catch (error) {
-    console.warn('周刊撰写模型失败，使用 fallback 草稿', error)
-    return buildWeeklyDraftFallback(week, articles)
-  }
+
+  throw lastError instanceof Error ? lastError : new Error('模型未返回有效 JSON')
 }
 
 export function parseWeeklyReview(content: string): { critique: string, pass: boolean } {
@@ -904,26 +909,38 @@ ${JSON.stringify(draft)}`,
   return parseWeeklyReview(output)
 }
 
+function withoutImageMarkdown(content: string): string {
+  return content.replace(/!\[[^\]]*\]\([^)]+\)\n*/g, '')
+}
+
 export async function reviseWeekly(
   env: Cloudflare.Env,
   draft: WeeklyDraft,
   critique: string,
+  articles: WeeklyArticle[] = [],
 ): Promise<WeeklyDraft> {
   try {
     const output = await runModel(
       env,
-      '你是繁體中文（台灣）科技專欄作家。根據審稿意見修訂，不得刪除有效原文連結或加入輸入中不存在的事實。只返回 JSON。',
+      '你是繁體中文（台灣）科技專欄作家。根據審稿意見修訂，不得刪除有效原文連結或加入輸入中不存在的事實。只返回 JSON。不要插入图片 Markdown。',
       `返回格式：{"title":"标题","summary":"摘要","content":"Markdown 正文","tags":["标签"]}
 
 审稿意见：
 ${critique}
 
 原草稿：
-${JSON.stringify(draft)}`,
-      8_192,
+${JSON.stringify({
+  ...draft,
+  content: withoutImageMarkdown(draft.content),
+})}`,
+      WRITE_MAX_TOKENS,
     )
 
-    return parseWeeklyDraft(output)
+    const revised = parseWeeklyDraft(output)
+    return {
+      ...revised,
+      content: ensureArticleImages(revised.content, articles),
+    }
   }
   catch (error) {
     console.warn('周刊修订失败，保留上一版草稿', error)

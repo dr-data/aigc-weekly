@@ -183,7 +183,7 @@ export class WeeklyWorkflow extends WorkflowEntrypoint<Cloudflare.Env, WeeklyWor
       draft = await step.do(
         `修订周刊 ${revision}`,
         STEP_OPTIONS,
-        () => reviseWeekly(this.env, draft, review.critique),
+        () => reviseWeekly(this.env, draft, review.critique, selected),
       )
     }
 
