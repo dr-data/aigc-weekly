@@ -71,4 +71,20 @@ describe('ensureArticleImages', () => {
     expect(updated).toContain(imageMarkdown)
     expect(updated.indexOf(imageMarkdown)).toBeGreaterThan(updated.indexOf('Gemini 3.7 Flash'))
   })
+
+  it('inserts image markdown after the article title when the URL is missing', () => {
+    const content = `### 資訊
+
+Gemini 3.7 Flash 正式發布。
+
+### 結束語
+`
+    const imageMarkdown = '![Gemini 3.7 Flash](https://wsrv.nl/?url=https%3A%2F%2Fexample.com%2Fcover.jpg&w=1200)'
+
+    expect(ensureArticleImages(content, [{
+      imageMarkdown,
+      title: 'Gemini 3.7 Flash',
+      url: 'https://deepmind.google/blog/introducing-gemini-3-7-flash/',
+    }])).toContain(imageMarkdown)
+  })
 })

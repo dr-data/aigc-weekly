@@ -157,10 +157,10 @@ export interface Weekly {
   summary: string;
   content: string;
   /**
-   * 格式：Y + 年份(两位数) + W + 周数(两位数)，例如：Y26W12
+   * 格式：Y + 年份（兩位數）+ W + 週數（兩位數），例如：Y26W12
    */
   issueNumber: string;
-  status: 'draft' | 'published';
+  status: 'published' | 'draft';
   publishDate: string;
   coverImage?: (number | null) | Media;
   links?:

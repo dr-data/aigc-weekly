@@ -65,7 +65,7 @@ export async function publishWeekly(
     content: draft.content,
     issueNumber: week.weekId,
     publishDate: week.currentDate,
-    status: 'draft',
+    status: 'published',
     summary: draft.summary,
     tags: draft.tags.map(value => ({ value })),
     title: draft.title,
@@ -73,7 +73,7 @@ export async function publishWeekly(
   const id = existing.docs?.[0]?.id
 
   if (id !== undefined) {
-    const updated = await payloadRequest<{ id: number | string }>(
+    await payloadRequest(
       `${baseUrl}/api/weekly/${id}`,
       {
         body: JSON.stringify(data),
@@ -81,10 +81,10 @@ export async function publishWeekly(
         method: 'PATCH',
       },
     )
-    return { id: updated.id, operation: 'updated' }
+    return { id, operation: 'updated' }
   }
 
-  const created = await payloadRequest<{ id: number | string }>(
+  const created = await payloadRequest<{ doc?: { id?: number | string }, id?: number | string }>(
     `${baseUrl}/api/weekly`,
     {
       body: JSON.stringify(data),
@@ -92,5 +92,9 @@ export async function publishWeekly(
       method: 'POST',
     },
   )
-  return { id: created.id, operation: 'created' }
+  const createdId = created.id ?? created.doc?.id
+  if (createdId === undefined)
+    throw new Error('Payload 未返回周刊 ID')
+
+  return { id: createdId, operation: 'created' }
 }

@@ -159,7 +159,7 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-export function ensureArticleImages(content: string, articles: Array<{ imageMarkdown?: string, url: string }>): string {
+export function ensureArticleImages(content: string, articles: Array<{ imageMarkdown?: string, title?: string, url: string }>): string {
   let result = content
 
   for (const article of articles) {
@@ -172,6 +172,11 @@ export function ensureArticleImages(content: string, articles: Array<{ imageMark
       new RegExp(`(\\*\\*\\[[^\\]]+\\]\\(${escapedUrl}\\)[^*\\n]*)\\n`),
       new RegExp(`(\\[[^\\]]+\\]\\(${escapedUrl}\\)[^\\n]*)\\n`),
     ]
+
+    if (article.title) {
+      const escapedTitle = escapeRegExp(article.title)
+      patterns.push(new RegExp(`(\\[[^\\]]*${escapedTitle}[^\\]]*\\]\\([^)]+\\)[^\\n]*)\\n`))
+    }
 
     let inserted = false
     for (const pattern of patterns) {
@@ -186,10 +191,12 @@ export function ensureArticleImages(content: string, articles: Array<{ imageMark
       continue
 
     const urlIndex = result.indexOf(article.url)
-    if (urlIndex < 0)
+    const titleIndex = article.title ? result.indexOf(article.title) : -1
+    const matchIndex = urlIndex >= 0 ? urlIndex : titleIndex
+    if (matchIndex < 0)
       continue
 
-    const lineEnd = result.indexOf('\n', urlIndex)
+    const lineEnd = result.indexOf('\n', matchIndex)
     const insertAt = lineEnd >= 0 ? lineEnd + 1 : result.length
     result = `${result.slice(0, insertAt)}\n${markdown}\n${result.slice(insertAt)}`
   }

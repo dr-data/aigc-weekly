@@ -10,7 +10,7 @@ import { renderMarkdown } from '@/lib/markdown'
 import { absoluteUrl, getBaseUrl } from '@/lib/url'
 import { getWeeklyBySlug } from '@/lib/weekly/data'
 
-export const revalidate = 86400
+export const revalidate = 0
 
 interface WeeklyDetailPageProps {
   params: Promise<{

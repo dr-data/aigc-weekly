@@ -3,8 +3,8 @@ import type { CollectionConfig } from 'payload'
 import { revalidateWeeklyCache } from '@/lib/weekly/cache'
 // import OvertypeFieldComponent from '@/components/payload/overtype'
 
-async function invalidateWeeklyCache<T>(doc: T): Promise<T> {
-  await revalidateWeeklyCache()
+async function invalidateWeeklyCache<T extends { issueNumber?: string }>(doc: T): Promise<T> {
+  await revalidateWeeklyCache(doc.issueNumber)
   return doc
 }
 
@@ -74,15 +74,15 @@ export const Weekly: CollectionConfig = {
       type: 'select',
       options: [
         {
-          label: '草稿',
-          value: 'draft',
-        },
-        {
           label: '已發佈',
           value: 'published',
         },
+        {
+          label: '草稿',
+          value: 'draft',
+        },
       ],
-      defaultValue: 'draft',
+      defaultValue: 'published',
       required: true,
       admin: {
         position: 'sidebar',

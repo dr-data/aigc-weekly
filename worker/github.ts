@@ -5,8 +5,9 @@ import type { WeeklyDraft } from './weekly'
 const REPOSITORY = 'dr-data/aigc-weekly'
 
 export interface PublishedGitHubIssue {
+  error?: string
   number: number
-  operation: 'created' | 'updated'
+  operation: 'created' | 'skipped' | 'updated'
   url: string
 }
 
@@ -56,7 +57,7 @@ async function githubRequest<T>(
 }
 
 function buildIssueTitle(week: WeekInfo, draft: WeeklyDraft): string {
-  return `[周刊草稿] ${week.weekId} · ${draft.title}`
+  return `[周刊] ${week.weekId} · ${draft.title}`
 }
 
 function buildCmsDraftUrl(env: Cloudflare.Env, week: WeekInfo): string {
@@ -80,11 +81,11 @@ export function buildIssueBody(
   const cmsAdminUrl = buildCmsAdminUrl(env, payload)
 
   return [
-    '> 自动生成的周刊草稿，待人工审核后发布。',
+    '> 自动生成的周刊，已写入 CMS 并设为已发布。如需修订请在后台修改。',
     '',
     `- **期号**：${week.weekId}`,
     `- **周期**：${week.startDate} ~ ${week.endDate}`,
-    `- **CMS 草稿**：${cmsDraftUrl}`,
+    `- **前台页面**：${cmsDraftUrl}`,
     `- **CMS 后台**：${cmsAdminUrl}`,
     `- **Payload 操作**：${payload.operation}`,
     '',
@@ -110,7 +111,7 @@ async function findExistingIssue(
 ): Promise<GitHubIssue | undefined> {
   const query = new URLSearchParams({
     per_page: '1',
-    q: `repo:${owner}/${repo} is:issue in:title [周刊草稿] ${weekId}`,
+    q: `repo:${owner}/${repo} is:issue in:title ${weekId}`,
   })
   const result = await githubRequest<{ items?: GitHubIssue[] }>(
     `https://api.github.com/search/issues?${query}`,
@@ -250,10 +251,12 @@ export async function publishWeeklyIssueSafely(
     return await publishWeeklyIssue(env, week, draft, payload)
   }
   catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
     console.error('GitHub Issue 发布失败，周刊草稿已写入 Payload', error)
     return {
+      error: message.slice(0, 500),
       number: 0,
-      operation: 'created',
+      operation: 'skipped',
       url: '',
     }
   }

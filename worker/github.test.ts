@@ -41,6 +41,8 @@ describe('buildIssueBody', () => {
     const body = buildIssueBody(createEnv(), week, draft, payload)
 
     expect(body).toContain('Y25W33')
+    expect(body).toContain('已写入 CMS 并设为已发布')
+    expect(body).toContain('前台页面')
     expect(body).toContain('https://ai.shor.lol/weekly/Y25W33')
     expect(body).toContain('https://ai.shor.lol/admin/collections/weekly/42')
     expect(body).toContain('这是摘要。')
@@ -74,11 +76,14 @@ describe('publishWeeklyIssue', () => {
       url: 'https://github.com/dr-data/aigc-weekly/issues/99',
     })
     expect(fetchMock).toHaveBeenCalledTimes(2)
+    const searchUrl = decodeURIComponent(String(fetchMock.mock.calls[0]?.[0]).replaceAll('+', ' '))
+    expect(searchUrl).toContain('in:title Y25W33')
+    expect(searchUrl).not.toContain('周刊草稿')
     const createCall = fetchMock.mock.calls[1]
     expect(createCall?.[0]).toBe('https://api.github.com/repos/dr-data/aigc-weekly/issues')
     expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({
       labels: ['weekly-draft', 'Y25W33'],
-      title: '[周刊草稿] Y25W33 · 测试周刊标题',
+      title: '[周刊] Y25W33 · 测试周刊标题',
     })
   })
 
@@ -153,8 +158,9 @@ describe('publishWeeklyIssue', () => {
     const result = await publishWeeklyIssueSafely(createEnv(), week, draft, payload)
 
     expect(result).toEqual({
+      error: 'GitHub API 401：{"message":"Bad credentials","status":"401"}',
       number: 0,
-      operation: 'created',
+      operation: 'skipped',
       url: '',
     })
   })

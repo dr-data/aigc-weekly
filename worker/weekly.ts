@@ -65,7 +65,9 @@ interface ModelResponse {
   response?: string
   choices?: {
     message?: {
-      content?: string
+      content?: unknown
+      reasoning?: unknown
+      reasoning_content?: unknown
     }
   }[]
 }
@@ -79,6 +81,14 @@ const SCORE_PARALLELISM = 3
 const HN_FULL_SCRAPE_THRESHOLD = 85
 const PRESCORE_THRESHOLD = 65
 const MIN_SUMMARY_FOR_PRESCORE = 40
+const WRITE_MAX_TOKENS = 16_384
+const WRITE_PARSE_ATTEMPTS = 3
+
+export const MODEL_RUN_OPTIONS = {
+  response_format: {
+    type: 'json_object' as const,
+  },
+}
 
 function clip(content: string, maximum: number): string {
   if (content.length <= maximum)
@@ -86,48 +96,122 @@ function clip(content: string, maximum: number): string {
   return `${content.slice(0, maximum)}\n\n[内容已截断]`
 }
 
-function getModelText(result: unknown): string {
+function asModelText(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim())
+    return value
+
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((part) => {
+        if (typeof part === 'string')
+          return part
+        if (part && typeof part === 'object' && 'text' in part && typeof (part as { text?: unknown }).text === 'string')
+          return (part as { text: string }).text
+        return ''
+      })
+      .join('')
+    if (parts.trim())
+      return parts
+  }
+
+  if (value && typeof value === 'object')
+    return JSON.stringify(value)
+
+  return undefined
+}
+
+export function stripModelThinking(content: string): string {
+  return content.replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '').trim()
+}
+
+function extractJsonValue(text: string, start: number): string | undefined {
+  const pairs: Record<string, string> = { '{': '}', '[': ']' }
+  const opener = text[start]
+  const expectedCloser = pairs[opener]
+  if (!expectedCloser)
+    return undefined
+
+  const stack: string[] = []
+  let inString = false
+  let escape = false
+
+  for (let index = start; index < text.length; index++) {
+    const character = text[index]
+    if (inString) {
+      if (escape) {
+        escape = false
+        continue
+      }
+      if (character === '\\') {
+        escape = true
+        continue
+      }
+      if (character === '"')
+        inString = false
+      continue
+    }
+
+    if (character === '"') {
+      inString = true
+      continue
+    }
+
+    if (character === '{' || character === '[') {
+      stack.push(pairs[character] ?? character)
+      continue
+    }
+
+    if (character === '}' || character === ']') {
+      if (stack.pop() !== character)
+        return undefined
+      if (stack.length === 0)
+        return text.slice(start, index + 1)
+    }
+  }
+
+  return undefined
+}
+
+export function getModelText(result: unknown): string {
   if (typeof result === 'string')
-    return result
+    return stripModelThinking(result)
+
+  if (!result || typeof result !== 'object')
+    throw new Error('模型未返回文本内容')
 
   const response = result as ModelResponse
-  if (typeof response.response === 'string')
-    return response.response
-
-  const content = response.choices?.[0]?.message?.content
-  if (typeof content === 'string')
-    return content
+  const message = response.choices?.[0]?.message
+  const text = asModelText(response.response) ?? asModelText(message?.content)
+  if (text)
+    return stripModelThinking(text)
 
   throw new Error('模型未返回文本内容')
 }
 
 export function parseModelJson<T>(content: string): T {
-  const trimmed = content
-    .trim()
+  const trimmed = stripModelThinking(content)
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/, '')
     .trim()
 
-  const objectStart = trimmed.indexOf('{')
-  const arrayStart = trimmed.indexOf('[')
-  const start = [objectStart, arrayStart]
-    .filter(index => index >= 0)
-    .sort((a, b) => a - b)[0]
+  for (let index = 0; index < trimmed.length; index++) {
+    const character = trimmed[index]
+    if (character !== '{' && character !== '[')
+      continue
 
-  if (start === undefined)
-    throw new Error('模型未返回有效 JSON')
+    const candidate = extractJsonValue(trimmed, index)
+    if (!candidate)
+      continue
 
-  const opener = trimmed[start]
-  const end = opener === '{' ? trimmed.lastIndexOf('}') : trimmed.lastIndexOf(']')
-  if (end < start)
-    throw new Error('模型未返回有效 JSON')
-
-  try {
-    return JSON.parse(trimmed.slice(start, end + 1)) as T
+    try {
+      return JSON.parse(candidate) as T
+    }
+    catch {
+      continue
+    }
   }
-  catch {
-    throw new Error('模型未返回有效 JSON')
-  }
+
+  throw new Error('模型未返回有效 JSON')
 }
 
 export function parseWeeklyDraft(content: string): WeeklyDraft {
@@ -160,9 +244,10 @@ async function runModel(env: Cloudflare.Env, system: string, prompt: string, max
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const result = await env.AI.run(AI_MODEL, {
+        ...MODEL_RUN_OPTIONS,
         max_tokens: maxTokens,
         messages: [
-          { role: 'system', content: system },
+          { role: 'system', content: `${system}\n/no_think` },
           { role: 'user', content: prompt },
         ],
         temperature: 0.2,
@@ -686,6 +771,73 @@ const CATEGORY_HEADINGS: Record<WeeklyArticle['category'], string> = {
   tool: '工具',
 }
 
+export function toWeeklyPromptArticles(articles: WeeklyArticle[]) {
+  return articles.map(article => ({
+    category: article.category,
+    date: article.date,
+    imageMarkdown: article.imageMarkdown,
+    score: article.score,
+    source: article.source,
+    summary: article.summary,
+    title: article.title,
+    url: article.url,
+  }))
+}
+
+const LAYOUT_HEADINGS = '開場白|資訊|资讯|模型|工具|結束語|结束语|結束语|結語|结语'
+const INTRO_OUTRO_HEADINGS = '開場白|結束語|结束语|結束语|結語|结语'
+const CATEGORY_LAYOUT_HEADINGS = '資訊|资讯|模型|工具'
+
+export function normalizeWeeklyLayout(content: string): string {
+  let result = content.replace(/\r\n/g, '\n').trim()
+  result = result.replace(/<!\[CDATA\[/g, '').replace(/\]\]>/g, '')
+  result = result.replace(/^#\s+DrData 的 AIGC 週刊[^\n]*\n+/u, '')
+  result = result.replace(/^本期自動 fallback 草稿[^\n]*\n+/gmu, '')
+  result = result.replace(/^以上內容由候選素材自動整理[^\n]*\n*/gmu, '')
+  result = result.replace(new RegExp(`^##\\s+(${LAYOUT_HEADINGS})\\s*$`, 'gm'), '### $1')
+  result = result.replace(
+    /\*\*\[(.+)\]\((https?:[^)]+)\)\*\*(?:（[^）\n]*）)?(?:\n+((?!\[)[^\n!][^\n]*))?/g,
+    (_match, title: string, url: string, summary?: string) => {
+      const cleanTitle = title.replace(/^\s*\[/, '').replace(/\]\s*$/, '').trim()
+      const body = summary?.trim()
+      return body ? `${body} [${cleanTitle}](${url})` : `[${cleanTitle}](${url})`
+    },
+  )
+  result = result.replace(new RegExp(`^###\\s+(${INTRO_OUTRO_HEADINGS})[ \\t]*(?:\\n+|$)`, 'gm'), '')
+  result = result.replace(
+    new RegExp(`^### (${CATEGORY_LAYOUT_HEADINGS})[ \\t]*(?:\\n+|$)`, 'gm'),
+    (match, _heading: string, offset: number, full: string) => {
+      const rest = full.slice(offset + match.length)
+      const section = rest.split(/^### /m)[0] ?? ''
+      return section.trim() ? match : ''
+    },
+  )
+  result = result.replace(/\n{3,}/g, '\n\n')
+  return result.trim()
+}
+
+export function hasExpectedArticleLayout(content: string, articles: WeeklyArticle[]): boolean {
+  if (articles.length === 0)
+    return true
+
+  if (!/^### (?:資訊|资讯|模型|工具)\s*$/m.test(content))
+    return false
+
+  const linked = articles.filter(article => content.includes(article.url)).length
+  if (linked < Math.max(1, Math.ceil(articles.length / 2)))
+    return false
+
+  const withImages = articles.filter(article => article.imageMarkdown)
+  if (withImages.length === 0)
+    return true
+
+  const inserted = withImages.filter((article) => {
+    const image = article.imageMarkdown
+    return Boolean(image && content.includes(image))
+  }).length
+  return inserted >= Math.max(1, Math.ceil(withImages.length / 2))
+}
+
 export function buildWeeklyDraftFallback(week: WeekInfo, articles: WeeklyArticle[]): WeeklyDraft {
   const grouped: Record<WeeklyArticle['category'], WeeklyArticle[]> = {
     news: [],
@@ -701,9 +853,9 @@ export function buildWeeklyDraftFallback(week: WeekInfo, articles: WeeklyArticle
     .map((category) => {
       const lines = grouped[category].map((article) => {
         const image = article.imageMarkdown ? `\n\n${article.imageMarkdown}` : ''
-        return `**[${article.title}](${article.url})**（${article.source}）\n\n${article.summary}${image}`
+        return `${article.summary} [${article.title}](${article.url})${image}`
       })
-      return `## ${CATEGORY_HEADINGS[category]}\n\n${lines.join('\n\n')}`
+      return `### ${CATEGORY_HEADINGS[category]}\n\n${lines.join('\n\n')}`
     })
 
   const tags = [...new Set(articles.flatMap(article => [article.category, article.source]))]
@@ -711,15 +863,11 @@ export function buildWeeklyDraftFallback(week: WeekInfo, articles: WeeklyArticle
 
   return {
     content: [
-      `# DrData 的 AIGC 週刊（${week.weekId}）`,
-      '',
-      `本期自動 fallback 草稿，範圍 ${week.startDate} 至 ${week.endDate}。`,
+      `歡迎回到 DrData 的 AIGC 週刊。本期範圍 ${week.startDate} 至 ${week.endDate}。`,
       '',
       ...sections,
       '',
-      '## 結束語',
-      '',
-      '以上內容由候選素材自動整理，請人工審核後發布。',
+      '以上為本期精選，歡迎持續關注。',
     ].join('\n'),
     summary: articles[0]?.summary.slice(0, 200) ?? `DrData 的 AIGC 週刊（${week.weekId}）`,
     tags,
@@ -732,50 +880,67 @@ export async function writeWeekly(
   week: WeekInfo,
   articles: WeeklyArticle[],
 ): Promise<WeeklyDraft> {
-  try {
-    const output = await runModel(
-      env,
-      `你是面向科技愛好者和開發者的繁體中文（台灣）科技專欄作家。
+  let lastError: unknown
+
+  for (let attempt = 0; attempt < WRITE_PARSE_ATTEMPTS; attempt++) {
+    try {
+      const output = await runModel(
+        env,
+        `你是面向科技愛好者和開發者的繁體中文（台灣）科技專欄作家。
 寫作應簡單、人性化、清晰、專業客觀，不堆砌形容詞。所有事實必須來自輸入素材。
-原文連結必須用貼近標題或核心名詞的錨點文字自然嵌入段落，禁止單列「原文連結」或「閱讀更多」。`,
-      `撰寫「DrData 的 AIGC 週刊（${week.weekId}）」。
-正文使用 Markdown，包含简短开场白、资讯、模型、工具和结束语。没有素材的分类可以省略。
-每条素材写成连贯段落，不要在标题后附发布日期。
-若素材 JSON 中包含 imageMarkdown 字段，请在该条段落结束后单独一行插入 imageMarkdown，不要修改其中的 URL。
+原文連結必須用貼近標題或核心名詞的錨點文字自然嵌入段落，禁止單列「原文連結」或「閱讀更多」。
+不要输出思考过程。`,
+        `撰寫「DrData 的 AIGC 週刊（${week.weekId}）」。
+版式必須接近既有週刊：
+1. 開頭一段開場白，不要再用大標題重複刊名。
+2. 使用 ### 資訊、### 模型、### 工具；沒有素材的分類可以省略。
+3. 每條素材獨立成段，禁止把多條擠進同一段。
+4. 段落末尾用 [標題](url) 自然收束，不要在標題後附發布日期。
+5. 若素材含 imageMarkdown，在該段結束後單獨一行原樣插入，不要修改 URL。
+6. 結尾一段結束語，不要寫成條目列表。
 
 返回严格 JSON：
 {"title":"标题","summary":"不超过 200 字摘要","content":"Markdown 正文","tags":["标签"]}
 
 本期范围：${week.startDate} 至 ${week.endDate}
 素材：
-${JSON.stringify(articles.map(article => ({
-  category: article.category,
-  date: article.date,
-  imageMarkdown: article.imageMarkdown,
-  score: article.score,
-  source: article.source,
-  summary: article.summary,
-  title: article.title,
-  url: article.url,
-})))}`,
-      8_192,
-    )
+${JSON.stringify(toWeeklyPromptArticles(articles))}`,
+        WRITE_MAX_TOKENS,
+      )
 
-    try {
       const draft = parseWeeklyDraft(output)
+      const content = normalizeWeeklyLayout(ensureArticleImages(draft.content, articles))
+      if (!hasExpectedArticleLayout(content, articles))
+        throw new Error('周刊版式缺少逐条链接或配图')
+
       return {
         ...draft,
-        content: ensureArticleImages(draft.content, articles),
+        content,
       }
     }
     catch (error) {
-      console.warn('周刊模型输出无法解析，使用 fallback 草稿', error)
-      return buildWeeklyDraftFallback(week, articles)
+      lastError = error
+      console.warn(`周刊撰写第 ${attempt + 1} 次失败，将重试`, error)
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('模型未返回有效 JSON')
+}
+
+export function parseWeeklyReview(content: string): { critique: string, pass: boolean } {
+  try {
+    const review = parseModelJson<{ critique?: unknown, pass?: unknown } | null>(content)
+    return {
+      critique: typeof review?.critique === 'string' ? review.critique.trim() : '',
+      pass: review?.pass === true,
     }
   }
   catch (error) {
-    console.warn('周刊撰写模型失败，使用 fallback 草稿', error)
-    return buildWeeklyDraftFallback(week, articles)
+    console.warn('周刊审核结果无法解析，视为未通过', error)
+    return {
+      critique: '审核模型未返回有效 JSON，请保持事实准确、链接完整，并重新整理本期重点。',
+      pass: false,
+    }
   }
 }
 
@@ -790,40 +955,63 @@ export async function reviewWeekly(
     `检查草稿是否满足：
 1. 内容与 AIGC 高度相关且没有营销软文；
 2. 没有超出素材的事实断言；
-3. 原文链接均保留为自然锚文本；
-4. 中文准确、流畅、简洁；
-5. 内容属于 ${week.startDate} 至 ${week.endDate} 的本期范围。
+3. 每条素材独立成段，原文链接为自然锚文本，禁止把多条挤进同一段；
+4. 有配图的条目必须保留段落后的图片 Markdown，不得删除；
+5. 中文准确、流畅、简洁；
+6. 内容属于 ${week.startDate} 至 ${week.endDate} 的本期范围。
 
 返回格式：{"pass":true|false,"critique":"通过时为空字符串，否则给出具体修改意见"}
 
 草稿：
 ${JSON.stringify(draft)}`,
+    4_096,
   )
 
-  const review = parseModelJson<{ critique?: unknown, pass?: unknown } | null>(output)
-  return {
-    critique: typeof review?.critique === 'string' ? review.critique.trim() : '',
-    pass: review?.pass === true,
-  }
+  return parseWeeklyReview(output)
+}
+
+function withoutImageMarkdown(content: string): string {
+  return content.replace(/!\[[^\]]*\]\([^)]+\)\n*/g, '')
 }
 
 export async function reviseWeekly(
   env: Cloudflare.Env,
   draft: WeeklyDraft,
   critique: string,
+  articles: WeeklyArticle[] = [],
 ): Promise<WeeklyDraft> {
-  const output = await runModel(
-    env,
-    '你是繁體中文（台灣）科技專欄作家。根據審稿意見修訂，不得刪除有效原文連結或加入輸入中不存在的事實。只返回 JSON。',
-    `返回格式：{"title":"标题","summary":"摘要","content":"Markdown 正文","tags":["标签"]}
+  try {
+    const output = await runModel(
+      env,
+      '你是繁體中文（台灣）科技專欄作家。根據審稿意見修訂，不得刪除有效原文連結或加入輸入中不存在的事實。只返回 JSON。保持每條素材獨立成段，並在段後原樣保留 imageMarkdown。',
+      `返回格式：{"title":"标题","summary":"摘要","content":"Markdown 正文","tags":["标签"]}
 
 审稿意见：
 ${critique}
 
 原草稿：
-${JSON.stringify(draft)}`,
-    8_192,
-  )
+${JSON.stringify({
+  ...draft,
+  content: withoutImageMarkdown(draft.content),
+})}
 
-  return parseWeeklyDraft(output)
+素材配图（修订后仍须按 URL 插回对应段落后）：
+${JSON.stringify(articles.filter(article => article.imageMarkdown).map(article => ({
+  imageMarkdown: article.imageMarkdown,
+  title: article.title,
+  url: article.url,
+})))}`,
+      WRITE_MAX_TOKENS,
+    )
+
+    const revised = parseWeeklyDraft(output)
+    return {
+      ...revised,
+      content: normalizeWeeklyLayout(ensureArticleImages(revised.content, articles)),
+    }
+  }
+  catch (error) {
+    console.warn('周刊修订失败，保留上一版草稿', error)
+    return draft
+  }
 }

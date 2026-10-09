@@ -45,7 +45,7 @@ const nextConfig = {
       {
         source: '/weekly/:slug',
         missing: [{ type: 'header', key: 'RSC' }],
-        headers: weeklyCacheHeaders('public, max-age=900, stale-while-revalidate=3600, stale-if-error=86400'),
+        headers: weeklyCacheHeaders('public, max-age=0, must-revalidate, stale-while-revalidate=60, stale-if-error=86400'),
       },
       {
         source: '/',
