@@ -15,9 +15,6 @@ export async function revalidateWeeklyCache(issueNumber?: string): Promise<void>
     console.error('Next.js 周刊缓存失效异常', error)
   }
 
-  if (globalThis.navigator?.userAgent !== 'Cloudflare-Workers')
-    return
-
   try {
     const { cache } = await import(/* webpackIgnore: true */ 'cloudflare:workers')
     const result = await cache.purge({ tags: [WEEKLY_CACHE_TAG] })
