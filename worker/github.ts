@@ -57,7 +57,7 @@ async function githubRequest<T>(
 }
 
 function buildIssueTitle(week: WeekInfo, draft: WeeklyDraft): string {
-  return `[周刊草稿] ${week.weekId} · ${draft.title}`
+  return `[周刊] ${week.weekId} · ${draft.title}`
 }
 
 function buildCmsDraftUrl(env: Cloudflare.Env, week: WeekInfo): string {
@@ -85,7 +85,7 @@ export function buildIssueBody(
     '',
     `- **期号**：${week.weekId}`,
     `- **周期**：${week.startDate} ~ ${week.endDate}`,
-    `- **CMS 草稿**：${cmsDraftUrl}`,
+    `- **前台页面**：${cmsDraftUrl}`,
     `- **CMS 后台**：${cmsAdminUrl}`,
     `- **Payload 操作**：${payload.operation}`,
     '',
@@ -111,7 +111,7 @@ async function findExistingIssue(
 ): Promise<GitHubIssue | undefined> {
   const query = new URLSearchParams({
     per_page: '1',
-    q: `repo:${owner}/${repo} is:issue in:title [周刊草稿] ${weekId}`,
+    q: `repo:${owner}/${repo} is:issue in:title ${weekId}`,
   })
   const result = await githubRequest<{ items?: GitHubIssue[] }>(
     `https://api.github.com/search/issues?${query}`,

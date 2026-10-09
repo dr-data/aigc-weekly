@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { getWeekInfo } from './week'
-import { buildWeeklyDraftFallback, deduplicateArticles, getModelText, hasExpectedArticleLayout, isHnItemUrl, MODEL_RUN_OPTIONS, parseModelJson, parseWeeklyDraft, parseWeeklyReview, selectArticlesByScore, toWeeklyPromptArticles, writeWeekly } from './weekly'
+import { buildWeeklyDraftFallback, deduplicateArticles, getModelText, hasExpectedArticleLayout, isHnItemUrl, MODEL_RUN_OPTIONS, normalizeWeeklyLayout, parseModelJson, parseWeeklyDraft, parseWeeklyReview, selectArticlesByScore, toWeeklyPromptArticles, writeWeekly } from './weekly'
 
 describe('isHnItemUrl', () => {
   it('detects Hacker News item pages', () => {
@@ -151,6 +151,59 @@ describe('buildWeeklyDraftFallback', () => {
     expect(draft.title).toContain('Y25W33')
     expect(draft.content).toContain('示例新闻')
     expect(draft.content).toContain('https://example.com/news')
+    expect(draft.content).toContain('### 資訊')
+    expect(draft.content).not.toMatch(/^## /m)
+    expect(draft.content).not.toContain('自動 fallback')
+    expect(draft.content).toContain('摘要内容 [示例新闻](https://example.com/news)')
+  })
+})
+
+describe('normalizeWeeklyLayout', () => {
+  it('converts fallback dump into W34-style headings and inline links', () => {
+    const result = normalizeWeeklyLayout(`# DrData 的 AIGC 週刊（Y26W35）
+
+本期自動 fallback 草稿，範圍 2026-08-30 至 2026-09-05。
+
+## 資訊
+
+**[Example News](https://example.com/news)**（HN）
+
+本文探討編碼代理安全。
+
+![Example News](https://wsrv.nl/?url=https://example.com/cover.jpg&w=1200)
+
+## 結束語
+
+以上內容由候選素材自動整理，請人工審核後發布。`)
+
+    expect(result).not.toContain('fallback')
+    expect(result).not.toContain('# DrData')
+    expect(result).toContain('### 資訊')
+    expect(result).not.toMatch(/^## /m)
+    expect(result).toContain('本文探討編碼代理安全。 [Example News](https://example.com/news)')
+    expect(result).toContain('wsrv.nl')
+    expect(result).not.toContain('### 結束語')
+    expect(result).not.toContain('以上內容由候選素材')
+  })
+
+  it('strips empty category headings and intro/outro titles', () => {
+    const result = normalizeWeeklyLayout(`### 開場白
+本期聚焦 Agent 與推理引擎。
+
+### 資訊
+文章探討 Warp 如何自我進化。[Warp](https://example.com/warp)
+
+![Warp](https://wsrv.nl/?url=https://example.com/warp.png&w=1200)
+
+### 模型
+
+### 工具`)
+
+    expect(result.startsWith('本期聚焦')).toBe(true)
+    expect(result).toContain('### 資訊')
+    expect(result).not.toContain('### 開場白')
+    expect(result).not.toContain('### 模型')
+    expect(result).not.toContain('### 工具')
   })
 })
 

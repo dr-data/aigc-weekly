@@ -784,6 +784,38 @@ export function toWeeklyPromptArticles(articles: WeeklyArticle[]) {
   }))
 }
 
+const LAYOUT_HEADINGS = '開場白|資訊|资讯|模型|工具|結束語|结束语|結束语|結語|结语'
+const INTRO_OUTRO_HEADINGS = '開場白|結束語|结束语|結束语|結語|结语'
+const CATEGORY_LAYOUT_HEADINGS = '資訊|资讯|模型|工具'
+
+export function normalizeWeeklyLayout(content: string): string {
+  let result = content.replace(/\r\n/g, '\n').trim()
+  result = result.replace(/<!\[CDATA\[/g, '').replace(/\]\]>/g, '')
+  result = result.replace(/^#\s+DrData 的 AIGC 週刊[^\n]*\n+/u, '')
+  result = result.replace(/^本期自動 fallback 草稿[^\n]*\n+/gmu, '')
+  result = result.replace(/^以上內容由候選素材自動整理[^\n]*\n*/gmu, '')
+  result = result.replace(new RegExp(`^##\\s+(${LAYOUT_HEADINGS})\\s*$`, 'gm'), '### $1')
+  result = result.replace(
+    /\*\*\[(.+)\]\((https?:[^)]+)\)\*\*(?:（[^）\n]*）)?(?:\n+((?!\[)[^\n!][^\n]*))?/g,
+    (_match, title: string, url: string, summary?: string) => {
+      const cleanTitle = title.replace(/^\s*\[/, '').replace(/\]\s*$/, '').trim()
+      const body = summary?.trim()
+      return body ? `${body} [${cleanTitle}](${url})` : `[${cleanTitle}](${url})`
+    },
+  )
+  result = result.replace(new RegExp(`^###\\s+(${INTRO_OUTRO_HEADINGS})[ \\t]*(?:\\n+|$)`, 'gm'), '')
+  result = result.replace(
+    new RegExp(`^### (${CATEGORY_LAYOUT_HEADINGS})[ \\t]*(?:\\n+|$)`, 'gm'),
+    (match, _heading: string, offset: number, full: string) => {
+      const rest = full.slice(offset + match.length)
+      const section = rest.split(/^### /m)[0] ?? ''
+      return section.trim() ? match : ''
+    },
+  )
+  result = result.replace(/\n{3,}/g, '\n\n')
+  return result.trim()
+}
+
 export function hasExpectedArticleLayout(content: string, articles: WeeklyArticle[]): boolean {
   if (articles.length === 0)
     return true
@@ -818,9 +850,9 @@ export function buildWeeklyDraftFallback(week: WeekInfo, articles: WeeklyArticle
     .map((category) => {
       const lines = grouped[category].map((article) => {
         const image = article.imageMarkdown ? `\n\n${article.imageMarkdown}` : ''
-        return `**[${article.title}](${article.url})**（${article.source}）\n\n${article.summary}${image}`
+        return `${article.summary} [${article.title}](${article.url})${image}`
       })
-      return `## ${CATEGORY_HEADINGS[category]}\n\n${lines.join('\n\n')}`
+      return `### ${CATEGORY_HEADINGS[category]}\n\n${lines.join('\n\n')}`
     })
 
   const tags = [...new Set(articles.flatMap(article => [article.category, article.source]))]
@@ -828,15 +860,11 @@ export function buildWeeklyDraftFallback(week: WeekInfo, articles: WeeklyArticle
 
   return {
     content: [
-      `# DrData 的 AIGC 週刊（${week.weekId}）`,
-      '',
-      `本期自動 fallback 草稿，範圍 ${week.startDate} 至 ${week.endDate}。`,
+      `歡迎回到 DrData 的 AIGC 週刊。本期範圍 ${week.startDate} 至 ${week.endDate}。`,
       '',
       ...sections,
       '',
-      '## 結束語',
-      '',
-      '以上內容由候選素材自動整理，請人工審核後發布。',
+      '以上為本期精選，歡迎持續關注。',
     ].join('\n'),
     summary: articles[0]?.summary.slice(0, 200) ?? `DrData 的 AIGC 週刊（${week.weekId}）`,
     tags,
@@ -878,7 +906,7 @@ ${JSON.stringify(toWeeklyPromptArticles(articles))}`,
       )
 
       const draft = parseWeeklyDraft(output)
-      const content = ensureArticleImages(draft.content, articles)
+      const content = normalizeWeeklyLayout(ensureArticleImages(draft.content, articles))
       if (!hasExpectedArticleLayout(content, articles))
         throw new Error('周刊版式缺少逐条链接或配图')
 
@@ -976,7 +1004,7 @@ ${JSON.stringify(articles.filter(article => article.imageMarkdown).map(article =
     const revised = parseWeeklyDraft(output)
     return {
       ...revised,
-      content: ensureArticleImages(revised.content, articles),
+      content: normalizeWeeklyLayout(ensureArticleImages(revised.content, articles)),
     }
   }
   catch (error) {
